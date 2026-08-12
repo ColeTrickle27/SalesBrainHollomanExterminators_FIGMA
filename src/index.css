@@ -1,0 +1,64 @@
+@import 'https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&display=swap';
+@import 'tailwindcss';
+
+@theme {
+  --color-brand-red: #CC1A1A;
+  --color-brand-red-dark: #A51515;
+  --color-brand-red-muted: #fde8e8;
+  --color-brand-black: #0A0A0A;
+  --color-brand-charcoal: #1F1F21;
+  --color-brand-dark: #3A3A3A;
+  --color-steel: #71717A;
+  --color-silver: #A8A8B3;
+  --color-surface: #F4F4F5;
+  --color-amber: #D97706;
+  --color-amber-light: #FFFBEB;
+  --color-success: #16A34A;
+  --color-success-light: #F0FDF4;
+  --color-danger: #DC2626;
+  --color-danger-light: #FEF2F2;
+  --color-info: #1D4ED8;
+  --color-info-light: #EFF6FF;
+
+  --font-display: 'Barlow Condensed', sans-serif;
+  --font-body: 'DM Sans', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background-color: #F4F4F5;
+  color: #0A0A0A;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 2px; }
+
+.font-display { font-family: 'Barlow Condensed', sans-serif; }
+.font-mono { font-family: 'JetBrains Mono', monospace; }
+
+.step-active { background: #C11A1A; color: white; }
+.step-done { background: #16A34A; color: white; }
+.step-pending { background: #E4E4E7; color: #71717A; }
+
+.proposal-page {
+  background: white;
+  box-shadow: 0 2px 24px rgba(0,0,0,0.10);
+  border-radius: 4px;
+  max-width: 780px;
+  margin: 0 auto 32px auto;
+}
+
+@media (max-width: 640px) {
+  .hide-mobile { display: none !important; }
+}
+@media (min-width: 641px) {
+  .hide-desktop { display: none !important; }
+}

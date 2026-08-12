@@ -1,0 +1,17 @@
+{
+  "title": "SalesBrain | Holloman Exterminators",
+  "description": "Streamlines field inspections and sales for pest control by enabling technicians to create detailed treatment plans, cost estimates, and professional customer proposals on mobile devices.",
+  "robots": {
+    "index": false
+  },
+  "icons": {
+    "icon": "/.figma/make/favicon.png"
+  },
+  "openGraph": {
+    "image": "/.figma/make/social-image.png"
+  },
+  "accessibility": {
+    "addBypassLinks": true,
+    "ignoreReducedMotion": false
+  }
+}
