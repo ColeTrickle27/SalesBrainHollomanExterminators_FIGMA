@@ -11,7 +11,10 @@ export default defineConfig(({ mode }) => {
   const emitSourcemaps = mode === 'development'
 
   return {
-    base: process.env.FIGMA_PUBLIC_URL ? `${process.env.FIGMA_PUBLIC_URL}/` : '/',
+    // Production is hosted inside Ops Brain at /sales-brain/. Keep the
+    // standalone Figma preview behavior for design work, while allowing the
+    // mounted build script to emit correctly-prefixed asset URLs.
+    base: process.env.MOUNT_BASE_PATH || (process.env.FIGMA_PUBLIC_URL ? `${process.env.FIGMA_PUBLIC_URL}/` : '/'),
     build: {
       sourcemap: emitSourcemaps ? 'inline' : false,
       minify: !emitSourcemaps,

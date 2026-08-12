@@ -1,11 +1,12 @@
 {
-  "name": "figma-make-app",
+  "name": "salesbrain-holloman-exterminators",
   "private": true,
   "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
+    "build:mounted": "node scripts/build-mounted.mjs",
     "preview": "vite preview",
     "format": "oxfmt"
   },
