@@ -4,23 +4,18 @@
  * shape -- everything downstream works with InspectionMarker.
  */
 
-import type { InspectionMarker, MarkerCategory } from "../../types/findings";
+import type { InspectionFinding, InspectionMarker, MarkerCategory } from "../../types/findings";
 import type { BugManGraphAnnotation } from "./types";
 
 // Mirrors GraphMarkerTypeMetadata.category in BugManInspects
 // (lib/models/graph_annotation.dart). Kept as data here so adding a new
 // marker type upstream only requires adding one line, not new logic.
 //
-// VERIFY BEFORE PHASE 3: only termiteActivity, termiteDamage, moisture,
-// treatmentArea, baitStation, and damage were directly confirmed against the
-// live GraphMarkerType enum during the Phase 1 inspection (~70 values total
-// exist in graph_annotation.dart / graph_marker_catalog.dart). Every other
-// key below is a reasonable best-effort guess at naming conventions the real
-// enum likely follows, NOT a verified value -- diff this map against the
-// actual Dart enum before relying on it. Any unrecognized type safely falls
-// back to the "review" category (see categoryFor) in the meantime.
-const CATEGORY_BY_MARKER_TYPE: Record<string, MarkerCategory> = {
+// This list is kept in sync with the canonical GraphMarkerType enum and its
+// GraphMarkerTypeMetadata.category switch in BugMan Graphs.
+export const CATEGORY_BY_MARKER_TYPE: Record<string, MarkerCategory> = {
   termiteActivity: "insectFindings",
+  termiteDamage: "insectFindings",
   activeTermites: "insectFindings",
   oldTermiteActivity: "insectFindings",
   mudTube: "insectFindings",
@@ -37,7 +32,6 @@ const CATEGORY_BY_MARKER_TYPE: Record<string, MarkerCategory> = {
   rot: "structureFindings",
   oldDamage: "structureFindings",
   damage: "structureFindings",
-  termiteDamage: "structureFindings",
   woodToGroundContact: "structureFindings",
   foundationCrack: "structureFindings",
   plumbingPenetration: "structureFindings",
@@ -90,6 +84,9 @@ const CATEGORY_BY_MARKER_TYPE: Record<string, MarkerCategory> = {
   exclusionPoint: "treatment",
   rodentBox: "treatment",
   rodentTrap: "treatment",
+  circle: "treatment",
+  triangle: "treatment",
+  square: "treatment",
 
   photoPoint: "review",
   notePoint: "review",
@@ -97,6 +94,38 @@ const CATEGORY_BY_MARKER_TYPE: Record<string, MarkerCategory> = {
   camera: "review",
   treatmentNote: "review",
 };
+
+/** Canonical customer-readable labels from BugMan Graphs' GraphMarkerType. */
+export const TITLE_BY_MARKER_TYPE: Record<string, string> = {
+  termiteActivity: "Termite Activity", termiteDamage: "Termite Damage", moisture: "Moisture",
+  standingWater: "Standing Water", conduciveCondition: "Conducive Condition", treatmentArea: "Treatment Area",
+  baitStation: "Bait Station", crawlspaceIssue: "Crawlspace Issue", plumbingLeak: "Plumbing Leak",
+  hvacCondensation: "HVAC Condensation", insulationIssue: "Insulation Issue", woodDecay: "Wood Decay",
+  accessPoint: "Access Point", entryPoint: "Entry Point", rodentActivity: "Rodent Activity",
+  generalPestActivity: "General Pest Activity", photoPoint: "Photo Insert", notePoint: "Inspection Note",
+  recommendationPoint: "Recommendation", oldDamage: "Old Damage", damage: "Damage",
+  activeTermites: "Active Termites", oldTermiteActivity: "Old Termite Activity", woodFungi: "Wood Destroying Fungi",
+  oldHouseBorers: "Old House Borers", powderPostBeetles: "Powder Post Beetles", treatmentNote: "Treatment Note",
+  mudTube: "Mud Tube", carpenterAntEvidence: "Carpenter Ant Evidence", carpenterBeeEvidence: "Carpenter Bee Evidence",
+  roachActivity: "Roach Activity", otherPestEvidence: "Other Pest Evidence", rot: "Wood Rot",
+  woodToGroundContact: "Wood-to-Ground Contact", foundationCrack: "Foundation Crack",
+  plumbingPenetration: "Plumbing Penetration", utilityPenetration: "Utility Penetration",
+  crawlspaceAccess: "Crawlspace Access", vent: "Vent", expansionJoint: "Expansion Joint",
+  structuralConcern: "Structural Concern", pestEntryPoint: "Pest Entry Point", moistureReading: "Moisture Reading",
+  highMoisture: "High Moisture", activeLeak: "Active Leak", condensation: "Condensation",
+  drainageConcern: "Drainage Concern", vaporBarrierIssue: "Vapor Barrier Issue", door: "Door", window: "Window",
+  garageDoor: "Garage Door", steps: "Steps", hvacUnit: "HVAC", gasLine: "Gas Line", waterLine: "Water Line",
+  wellOrCistern: "Well or Cistern", deckSupport: "Deck Support", pier: "Pier", foundationVent: "Foundation Vent",
+  verticalDrill: "Vertical Drill", horizontalDrill: "Horizontal Drill", trenchAndTreat: "Trench and Treat",
+  rodInjection: "Rod Injection", foamApplication: "Foam Application", liquidTreatmentZone: "Liquid Treatment Zone",
+  interiorBaitPlacement: "Interior Bait Placement", dustApplication: "Dust Application", exclusionPoint: "Exclusion Point",
+  rodentBox: "Rodent Box", rodentTrap: "Rodent Trap", circle: "Circle", triangle: "Triangle", square: "Square",
+  camera: "Camera",
+};
+
+export const INSPECTION_FINDING_CATALOG = Object.entries(CATEGORY_BY_MARKER_TYPE)
+  .filter(([, category]) => category === "insectFindings" || category === "structureFindings" || category === "moistureFindings")
+  .map(([type, category]) => ({ type, category, title: TITLE_BY_MARKER_TYPE[type] || type }));
 
 function categoryFor(markerType: string): MarkerCategory {
   return CATEGORY_BY_MARKER_TYPE[markerType] ?? "review";
@@ -114,7 +143,7 @@ export function annotationToMarker(
     id: annotation.id,
     type: annotation.markerType,
     category: categoryFor(annotation.markerType),
-    title: annotation.label || annotation.markerType,
+    title: TITLE_BY_MARKER_TYPE[annotation.markerType] || annotation.label || annotation.markerType,
     graphRef: { graphId, annotationId: annotation.id },
     observation: annotation.note,
     severity,
@@ -134,4 +163,36 @@ export function annotationsToMarkers(
   return annotations
     .map((annotation) => annotationToMarker(graphId, annotation, createdBy, createdAt))
     .filter((marker): marker is InspectionMarker => marker !== null);
+}
+
+/** Groups reportable graph markers into exactly one persistent finding per canonical marker type. */
+export function inspectionMarkersToFindings(graphKey: string, markers: InspectionMarker[]): InspectionFinding[] {
+  const now = new Date().toISOString();
+  const grouped = new Map<string, InspectionMarker[]>();
+  for (const marker of markers.filter((item) => item.category === "insectFindings" || item.category === "structureFindings" || item.category === "moistureFindings")) {
+    const current = grouped.get(marker.type);
+    if (current) current.push(marker);
+    else grouped.set(marker.type, [marker]);
+  }
+  return Array.from(grouped.values(), (group) => {
+    const first = group[0];
+    const observations = Array.from(new Set(group.map((marker) => [marker.area ? `${marker.area}:` : "", marker.observation || marker.notes || ""].filter(Boolean).join(" ")).filter(Boolean)));
+    return {
+      id: `finding-${first.type}`,
+      source: "graph",
+      sourceGraphKey: graphKey,
+      markerType: first.type,
+      customerVisible: true,
+      title: first.title || first.type,
+      summary: observations.join(" • "),
+      category: first.category,
+      severity: first.severity,
+      tag: first.category === "insectFindings" ? "Priority" : first.category === "moistureFindings" ? "Watch" : "Inspection",
+      markerIds: group.map((marker) => marker.id),
+      photoIds: Array.from(new Set(group.flatMap((marker) => marker.photoIds))),
+      status: "pending_review",
+      createdAt: now,
+      updatedAt: now,
+    };
+  });
 }

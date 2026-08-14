@@ -56,6 +56,10 @@ export interface PhotoReference {
   url: string;
   thumbnailUrl?: string;
   caption?: string;
+  findingIds?: string[];
+  customerVisible?: boolean;
+  uploadStatus?: "uploading" | "ready" | "error";
+  uploadError?: string;
   width?: number;
   height?: number;
   byteSize?: number;

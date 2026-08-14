@@ -4,8 +4,8 @@
  * SalesInspection is the single live estimate record. UI-only state (open
  * dialogs, navigation, and current-user loading) stays separate, but every
  * workflow edit is reconciled into that one record before the UI derives its
- * completion state. This keeps the existing five-step behavior while making
- * the record ready for the Ops Brain persistence boundary.
+ * completion state. This supports the eleven-stage inspection-to-PestPac
+ * workflow while keeping one record at the Ops Brain persistence boundary.
  */
 
 import {
@@ -17,7 +17,7 @@ import {
   useState,
 } from "react"
 import type { CustomerSearchResult } from "../../types/customer"
-import type { InspectionFinding, InspectionMarker } from "../../types/findings"
+import type { InspectionFinding } from "../../types/findings"
 import type { PropertyInspection } from "../../types/property"
 import type { SalesInspection } from "../../types/sales-inspection"
 import type {
@@ -26,21 +26,46 @@ import type {
 } from "../../types/pricebook"
 import type { OpsBrainUser } from "../../types/user"
 import {
+  calculateCosting,
   createEmptySalesBrainWorkflowData,
+  normalizeSalesBrainWorkflowData,
   type SalesBrainWorkflowData,
 } from "../../types/figma-workflow"
+import type {
+  LeadActivity,
+  LeadInput,
+  SalesCostingSettings,
+  SalesDashboardData,
+  SalesLaborRole,
+  SalesLaborRoleInput,
+  SalesProduct,
+  SalesProductInput,
+  PestPacHandoff,
+  SalesDeliveryEvent,
+  SalesDeliveryInput,
+  SalesDocumentType,
+  SalesEmployeeProfile,
+  SalesGeneratedDocument,
+  SalesServicePackage,
+  SalesServicePackageInput,
+  SalesSignatureRequest,
+} from "../../types/sales-operations"
 import { createBugManIntelligenceService } from "../../services/bugmanIntelligence"
 import {
   createBugManGraphsService,
+  INSPECTION_FINDING_CATALOG,
+  inspectionMarkersToFindings,
   type BugManGraphListItem,
   type BugManGraphsService,
 } from "../../services/bugmanGraphs"
 import {
   createCurrentUserService,
   createSalesBrainEstimatesService,
+  createSalesBrainOperationsService,
   createSalesBrainPricebookService,
   type SalesBrainEstimateListItem,
   type SalesBrainEstimatesService,
+  type SalesBrainOperationsService,
   type SalesBrainPricebookService,
 } from "../../services/opsBrain"
 import {
@@ -53,15 +78,6 @@ import { getInitialFindings, shouldUseMockFindings } from "./mockData"
 export const VISIT_STEPS = WORKFLOW_STEPS.map((id) => WORKFLOW_STEP_LABELS[id])
 
 const LAST_OPEN_ESTIMATE_ID_KEY = "bugman-sales-brain:last-open-estimate-id"
-const REPORT_EXCLUDED_MARKER_TYPES = new Set([
-  "hvacUnit",
-  "pier",
-  "steps",
-  "crawlspaceAccess",
-  "gasLine",
-  "waterLine",
-])
-
 function readLastOpenEstimateId() {
   try {
     return window.localStorage.getItem(LAST_OPEN_ESTIMATE_ID_KEY)
@@ -148,6 +164,13 @@ function reconcileInspection(inspection: SalesInspection): SalesInspection {
   return { ...inspection, activeStep, completedSteps }
 }
 
+function normalizeInspection(inspection: SalesInspection): SalesInspection {
+  return reconcileInspection({
+    ...inspection,
+    workflowData: normalizeSalesBrainWorkflowData(inspection.workflowData),
+  })
+}
+
 /** A clean, legitimate draft record. The id/number are stable for the draft so
  * the eventual Save action can create once and subsequently overwrite the
  * same persisted record without duplicates. */
@@ -203,62 +226,11 @@ function propertyFor(
   }
 }
 
-function graphFindingsFor(
+export function graphFindingsFor(
   graphKey: string,
   markers: SalesInspection["markers"],
 ): InspectionFinding[] {
-  const now = new Date().toISOString()
-  const groupedMarkers = new Map<string, InspectionMarker[]>()
-  for (const marker of markers.filter(isReportableInspectionMarker)) {
-    // A moisture reading represents one precise location. Every other marker
-    // type is a single report concern even when plotted several times.
-    const key = isIndividualMoistureReading(marker)
-      ? `marker:${marker.id}`
-      : `type:${marker.type}`
-    const group = groupedMarkers.get(key)
-    if (group) group.push(marker)
-    else groupedMarkers.set(key, [marker])
-  }
-  return Array.from(groupedMarkers.values(), (group) => findingForMarkerGroup(graphKey, group, now))
-}
-
-/** Only graph Inspection Markers belong in a Sales Brain inspection report. */
-function isReportableInspectionMarker(marker: InspectionMarker) {
-  if (marker.category === "treatment" || marker.category === "review") return false
-  return !REPORT_EXCLUDED_MARKER_TYPES.has(marker.type)
-}
-
-function isIndividualMoistureReading(marker: InspectionMarker) {
-  return marker.type === "moisture" || marker.type === "moistureReading"
-}
-
-function findingForMarkerGroup(
-  graphKey: string,
-  markers: InspectionMarker[],
-  now: string,
-): InspectionFinding {
-  const first = markers[0]
-  const observations = Array.from(new Set(markers.map((marker) => [
-    marker.area ? `${marker.area}:` : "",
-    marker.observation || marker.notes || "",
-  ].filter(Boolean).join(" ")).filter(Boolean)))
-  return {
-    id: isIndividualMoistureReading(first)
-      ? `graph-${graphKey}-${first.id}`
-      : `graph-${graphKey}-${first.type}`,
-    source: "graph",
-    sourceGraphKey: graphKey,
-    title: first.title || first.type,
-    summary: observations.join(" • "),
-    category: first.category,
-    severity: first.severity,
-    tag: first.category === "insectFindings" ? "Priority" : first.category === "moistureFindings" ? "Watch" : "Inspection",
-    markerIds: markers.map((marker) => marker.id),
-    photoIds: Array.from(new Set(markers.flatMap((marker) => marker.photoIds))),
-    status: "pending_review",
-    createdAt: now,
-    updatedAt: now,
-  }
+  return inspectionMarkersToFindings(graphKey, markers)
 }
 
 export function useSalesWorkflow() {
@@ -268,12 +240,16 @@ export function useSalesWorkflow() {
   )
   const estimatesServiceRef = useRef<SalesBrainEstimatesService | null>(null)
   const pricebookServiceRef = useRef<SalesBrainPricebookService | null>(null)
+  const operationsServiceRef = useRef<SalesBrainOperationsService | null>(null)
   const graphServiceRef = useRef<BugManGraphsService | null>(null)
   if (!estimatesServiceRef.current) {
     estimatesServiceRef.current = createSalesBrainEstimatesService()
   }
   if (!pricebookServiceRef.current) {
     pricebookServiceRef.current = createSalesBrainPricebookService()
+  }
+  if (!operationsServiceRef.current) {
+    operationsServiceRef.current = createSalesBrainOperationsService()
   }
   if (!graphServiceRef.current)
     graphServiceRef.current = createBugManGraphsService()
@@ -297,6 +273,26 @@ export function useSalesWorkflow() {
   const [estimates, setEstimates] = useState<SalesBrainEstimateListItem[]>([])
   const [estimatesLoading, setEstimatesLoading] = useState(false)
   const [estimatesError, setEstimatesError] = useState<string | null>(null)
+  const [dashboardData, setDashboardData] = useState<SalesDashboardData | null>(null)
+  const [operationsLoading, setOperationsLoading] = useState(false)
+  const [operationsError, setOperationsError] = useState<string | null>(null)
+  const [leadActivities, setLeadActivities] = useState<Record<string, LeadActivity[]>>({})
+  const [products, setProducts] = useState<SalesProduct[]>([])
+  const [laborRoles, setLaborRoles] = useState<SalesLaborRole[]>([])
+  const [servicePackages, setServicePackages] = useState<SalesServicePackage[]>([])
+  const [employeeProfile, setEmployeeProfile] = useState<SalesEmployeeProfile | null>(null)
+  const [employeeProfiles, setEmployeeProfiles] = useState<SalesEmployeeProfile[]>([])
+  const [generatedDocuments, setGeneratedDocuments] = useState<SalesGeneratedDocument[]>([])
+  const [deliveries, setDeliveries] = useState<SalesDeliveryEvent[]>([])
+  const [signatureRequest, setSignatureRequest] = useState<SalesSignatureRequest | null>(null)
+  const [pestPacHandoff, setPestPacHandoff] = useState<PestPacHandoff | null>(null)
+  const [providerActionLoading, setProviderActionLoading] = useState(false)
+  const [costingSettings, setCostingSettings] = useState<SalesCostingSettings>({
+    equipmentTravelDisposalCents: 0,
+    overheadPercent: 10,
+    contingencyPercent: 5,
+    targetMarginPercent: 50,
+  })
   const [persistedInspections, setPersistedInspections] =
     useState<SalesInspection[]>([])
   const [persistedInspectionsLoading, setPersistedInspectionsLoading] =
@@ -316,6 +312,7 @@ export function useSalesWorkflow() {
   const [pricebookError, setPricebookError] = useState<string | null>(null)
   const [pricebookSaving, setPricebookSaving] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const pendingPhotoFilesRef = useRef(new Map<string, { file: File; previewUrl: string }>())
 
   // Who is signed in is app-level context, not estimate data. It supplies the
   // creator of a new draft once Ops Brain returns the active user.
@@ -352,9 +349,36 @@ export function useSalesWorkflow() {
     }
   }, [])
 
+  const refreshOperations = useCallback(async () => {
+    setOperationsLoading(true)
+    setOperationsError(null)
+    try {
+      const [dashboard, allLeads, productRows, laborRows, settings, packageRows, employee] = await Promise.all([
+        operationsServiceRef.current!.loadDashboard(),
+        operationsServiceRef.current!.listLeads(),
+        operationsServiceRef.current!.listProducts(),
+        operationsServiceRef.current!.listLaborRoles(),
+        operationsServiceRef.current!.getCostingSettings(),
+        operationsServiceRef.current!.listServicePackages(),
+        operationsServiceRef.current!.getMyEmployeeProfile(),
+      ])
+      setDashboardData({ ...dashboard, leads: allLeads })
+      setProducts(productRows)
+      setLaborRoles(laborRows)
+      setCostingSettings(settings)
+      setServicePackages(packageRows)
+      setEmployeeProfile(employee)
+    } catch (error) {
+      setOperationsError(error instanceof Error ? error.message : "Could not load Sales Brain operating data.")
+    } finally {
+      setOperationsLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     void refreshPricebook()
-  }, [refreshPricebook])
+    void refreshOperations()
+  }, [refreshOperations, refreshPricebook])
 
   useEffect(() => {
     let cancelled = false
@@ -398,7 +422,7 @@ export function useSalesWorkflow() {
       .then((savedInspection) => {
         if (cancelled) return
         if (savedInspection) {
-          setInspection(reconcileInspection(savedInspection))
+          setInspection(normalizeInspection(savedInspection))
           setSavedAt(null)
           setSaveError(null)
           return
@@ -504,9 +528,10 @@ export function useSalesWorkflow() {
     setIsSaving(true)
     setSaveError(null)
     try {
-      const savedInspection =
-        await estimatesServiceRef.current!.saveEstimate(inspection)
-      setInspection(reconcileInspection(savedInspection))
+      const savedInspection = await estimatesServiceRef.current!.saveEstimate(
+        normalizeInspection(inspection),
+      )
+      setInspection(normalizeInspection(savedInspection))
       writeLastOpenEstimateId(savedInspection.id)
       setSavedAt(savedInspection.updatedAt)
     } catch (error) {
@@ -599,7 +624,7 @@ export function useSalesWorkflow() {
         await loadEstimates()
         return
       }
-      setInspection(reconcileInspection(savedInspection))
+      setInspection(normalizeInspection(savedInspection))
       writeLastOpenEstimateId(savedInspection.id)
       setSavedAt(null)
       setSaveError(null)
@@ -653,6 +678,19 @@ export function useSalesWorkflow() {
           ...previous,
           billTo: customer.billTo,
           location: customer.location,
+          workflowData: normalizeSalesBrainWorkflowData({
+            ...previous.workflowData,
+            customer: {
+              ...normalizeSalesBrainWorkflowData(previous.workflowData).customer,
+              leadType: "Existing Customer",
+              company: customer.billTo.accountType === "company" ? customer.billTo.billToName : "",
+              first: customer.billTo.customerFirstName || "",
+              last: customer.billTo.customerLastName || "",
+              locationName: customer.location.locationName || "",
+              streetAddress: customer.location.locationAddress || "",
+              state: "NC",
+            },
+          }),
         }
 
       const findings = getInitialFindings()
@@ -660,6 +698,19 @@ export function useSalesWorkflow() {
         ...previous,
         billTo: customer.billTo,
         location: customer.location,
+        workflowData: normalizeSalesBrainWorkflowData({
+          ...previous.workflowData,
+          customer: {
+            ...normalizeSalesBrainWorkflowData(previous.workflowData).customer,
+            leadType: "Existing Customer",
+            company: customer.billTo.accountType === "company" ? customer.billTo.billToName : "",
+            first: customer.billTo.customerFirstName || "",
+            last: customer.billTo.customerLastName || "",
+            locationName: customer.location.locationName || "",
+            streetAddress: customer.location.locationAddress || "",
+            state: "NC",
+          },
+        }),
         property: undefined,
         markers: [],
         findings,
@@ -732,14 +783,16 @@ export function useSalesWorkflow() {
 
   /** Real Property completion signal from BugManGraphsWorkspace's saved-graph
    * postMessage handshake; no manual completion path exists. */
-  const handleGraphSaved = ({ graphKey }: { graphKey?: string }) => {
+  const handleGraphSaved = async ({ graphKey }: { graphKey?: string }) => {
     updateInspection((previous) => ({
       ...previous,
       property: propertyFor(previous, graphKey),
     }))
     if (graphKey) {
       setWorkspaceGraphKey(graphKey)
-      void importGraphData(graphKey)
+      await importGraphData(graphKey)
+      setBugmanGraphsOpen(false)
+      setWorkspaceGraphKey(null)
     }
   }
 
@@ -760,14 +813,23 @@ export function useSalesWorkflow() {
         )
         const mergedFindings = imported.map((item) => {
           const existing = existingById.get(item.id) ?? existingGraphFindings.find(
-            (candidate) => candidate.userEdited && candidate.markerIds.some(
+            (candidate) => candidate.markerType === item.markerType || candidate.markerIds.some(
               (markerId) => item.markerIds.includes(markerId),
             ),
           )
           // Earlier releases used one finding per marker. Keep edited wording
           // while collapsing that old data into its type-based finding.
-          return existing?.userEdited
-            ? { ...item, id: existing.id, summary: existing.summary, userEdited: true, createdAt: existing.createdAt, updatedAt: existing.updatedAt }
+          return existing
+            ? {
+              ...item,
+              id: existing.id,
+              summary: existing.userEdited ? existing.summary : item.summary,
+              userEdited: existing.userEdited,
+              hidden: existing.hidden,
+              customerVisible: existing.customerVisible ?? true,
+              createdAt: existing.createdAt,
+              updatedAt: existing.userEdited ? existing.updatedAt : item.updatedAt,
+            }
             : item
         })
         const retainedFindings = previous.findings.filter(
@@ -782,7 +844,7 @@ export function useSalesWorkflow() {
           property: propertyFor(previous, graphKey),
           markers,
           findings: [...retainedFindings, ...mergedFindings],
-          photos: [...retainedPhotos, ...graphPhotos.filter((photo) => !excluded.has(photo.id))],
+          photos: [...retainedPhotos, ...graphPhotos.filter((photo) => !excluded.has(photo.id)).map((photo) => ({ ...photo, customerVisible: photo.customerVisible ?? true, uploadStatus: "ready" as const }))],
         }
       })
     } catch (error) {
@@ -830,7 +892,7 @@ export function useSalesWorkflow() {
       const id = `custom-${createEstimateId()}`
       const recommendation = {
         ...recommendationFor(
-          { id, name: normalized, description: normalized, price: priceCents, category: "Custom", active: true, createdAt: now, updatedAt: now },
+          { id, name: normalized, description: normalized, price: priceCents, category: "Custom", priceBy: "variable", productIds: [], active: true, createdAt: now, updatedAt: now },
           previous.findings,
           now,
           true,
@@ -968,6 +1030,164 @@ export function useSalesWorkflow() {
     }
   }
 
+  const createLead = async (input: LeadInput) => {
+    const lead = await operationsServiceRef.current!.createLead(input)
+    await refreshOperations()
+    return lead
+  }
+
+  const updateLead = async (id: string, input: Partial<LeadInput>) => {
+    const lead = await operationsServiceRef.current!.updateLead(id, input)
+    await refreshOperations()
+    return lead
+  }
+
+  const loadLeadActivities = async (leadId: string) => {
+    const activities = await operationsServiceRef.current!.listActivities(leadId)
+    setLeadActivities((current) => ({ ...current, [leadId]: activities }))
+    return activities
+  }
+
+  const addLeadActivity = async (leadId: string, input: Pick<LeadActivity, "type" | "note" | "happenedAt" | "quoteId">) => {
+    const activity = await operationsServiceRef.current!.addActivity(leadId, input)
+    setLeadActivities((current) => ({ ...current, [leadId]: [activity, ...(current[leadId] || [])] }))
+    await refreshOperations()
+    return activity
+  }
+
+  const createProduct = async (input: SalesProductInput) => {
+    const product = await operationsServiceRef.current!.createProduct(input)
+    setProducts((current) => [...current, product])
+  }
+  const updateProduct = async (id: string, input: SalesProductInput) => {
+    const product = await operationsServiceRef.current!.updateProduct(id, input)
+    setProducts((current) => current.map((item) => item.id === id ? product : item))
+  }
+  const deactivateProduct = async (id: string) => {
+    const product = await operationsServiceRef.current!.deactivateProduct(id)
+    setProducts((current) => current.map((item) => item.id === id ? product : item))
+  }
+  const createLaborRole = async (input: SalesLaborRoleInput) => {
+    const role = await operationsServiceRef.current!.createLaborRole(input)
+    setLaborRoles((current) => [...current, role])
+  }
+  const updateLaborRole = async (id: string, input: SalesLaborRoleInput) => {
+    const role = await operationsServiceRef.current!.updateLaborRole(id, input)
+    setLaborRoles((current) => current.map((item) => item.id === id ? role : item))
+  }
+  const deactivateLaborRole = async (id: string) => {
+    const role = await operationsServiceRef.current!.deactivateLaborRole(id)
+    setLaborRoles((current) => current.map((item) => item.id === id ? role : item))
+  }
+  const saveCostingSettings = async (input: SalesCostingSettings) => {
+    setCostingSettings(await operationsServiceRef.current!.updateCostingSettings(input))
+  }
+
+  const createServicePackage = async (input: SalesServicePackageInput) => {
+    const item = await operationsServiceRef.current!.createServicePackage(input)
+    setServicePackages((current) => [...current, item])
+  }
+  const updateServicePackage = async (id: string, input: SalesServicePackageInput) => {
+    const item = await operationsServiceRef.current!.updateServicePackage(id, input)
+    setServicePackages((current) => current.map((entry) => entry.id === id ? item : entry))
+  }
+  const deactivateServicePackage = async (id: string) => {
+    const item = await operationsServiceRef.current!.deactivateServicePackage(id)
+    setServicePackages((current) => current.map((entry) => entry.id === id ? item : entry))
+  }
+
+  const loadEmployeeProfiles = useCallback(async () => {
+    const rows = await operationsServiceRef.current!.listEmployeeProfiles()
+    setEmployeeProfiles(rows)
+    return rows
+  }, [])
+
+  const updateEmployeeProfile = async (username: string, input: Omit<SalesEmployeeProfile, "username" | "updatedAt" | "updatedBy">) => {
+    const item = await operationsServiceRef.current!.updateEmployeeProfile(username, input)
+    setEmployeeProfiles((current) => [...current.filter((entry) => entry.username !== username), item].sort((a, b) => a.displayName.localeCompare(b.displayName)))
+    if (username === currentUser?.username) setEmployeeProfile(item)
+    return item
+  }
+
+  const migrateLegacyData = async () => {
+    const result = await operationsServiceRef.current!.migrateLegacyData()
+    await Promise.all([loadEstimates(), refreshOperations(), refreshPricebook()])
+    return result
+  }
+
+  const loadProviderState = useCallback(async (quoteId = inspection.id) => {
+    try {
+      const [documents, deliveryRows, signature] = await Promise.all([
+        estimatesServiceRef.current!.listDocuments(quoteId),
+        estimatesServiceRef.current!.listDeliveries(quoteId),
+        estimatesServiceRef.current!.getSignatureRequest(quoteId),
+      ])
+      setGeneratedDocuments(documents)
+      setDeliveries(deliveryRows)
+      setSignatureRequest(signature)
+      if (signature?.status === "completed") setPestPacHandoff(await estimatesServiceRef.current!.getPestPacHandoff(quoteId))
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Unable to load delivery and signature status.")
+    }
+  }, [inspection.id])
+
+  const createCustomerDocument = async (type: SalesDocumentType) => {
+    setProviderActionLoading(true)
+    try {
+      await saveEstimate()
+      const result = await estimatesServiceRef.current!.createDocument(inspection.id, type)
+      setGeneratedDocuments((current) => [result.document, ...current])
+      return result
+    } finally {
+      setProviderActionLoading(false)
+    }
+  }
+
+  const sendCustomerDocument = async (input: SalesDeliveryInput) => {
+    setProviderActionLoading(true)
+    try {
+      const result = await estimatesServiceRef.current!.sendDelivery(inspection.id, input)
+      setDeliveries((current) => [result.delivery, ...current.filter((item) => item.id !== result.delivery.id)])
+      const refreshed = await estimatesServiceRef.current!.getEstimate(inspection.id)
+      if (refreshed) setInspection(normalizeInspection(refreshed))
+      await Promise.all([loadEstimates(), refreshOperations()])
+      return result
+    } finally {
+      setProviderActionLoading(false)
+    }
+  }
+
+  const requestCustomerSignature = async (input: { customerEmail: string; customerName: string; selectedOptionId: string; message: string; idempotencyKey: string }) => {
+    setProviderActionLoading(true)
+    try {
+      await saveEstimate()
+      const result = await estimatesServiceRef.current!.createSignatureRequest(inspection.id, input)
+      setSignatureRequest(result.signatureRequest)
+      await loadProviderState(inspection.id)
+      return result
+    } finally {
+      setProviderActionLoading(false)
+    }
+  }
+
+  const savePestPacHandoffRecord = async (input: PestPacHandoff & { complete?: boolean }) => {
+    setProviderActionLoading(true)
+    try {
+      const saved = await estimatesServiceRef.current!.savePestPacHandoff(inspection.id, input)
+      setPestPacHandoff(saved)
+      return saved
+    } finally {
+      setProviderActionLoading(false)
+    }
+  }
+
+  const createProposalPdf = async () => {
+    await saveEstimate()
+    const result = await estimatesServiceRef.current!.createProposalPdf(inspection.id)
+    updateInspection((current) => ({ ...current, proposalR2Key: result.key, reportBuiltAt: new Date().toISOString() }))
+    return result
+  }
+
   const previewReport = () => setShowReport(true)
 
   /** Building the report is the only action that completes Review & Send. */
@@ -1020,24 +1240,111 @@ export function useSalesWorkflow() {
     }))
   }
 
+  const updateFindingDetails = (findingId: string, patch: Partial<InspectionFinding>) => {
+    updateInspection((current) => ({
+      ...current,
+      findings: current.findings.map((item) => item.id === findingId
+        ? { ...item, ...patch, userEdited: true, updatedAt: new Date().toISOString() }
+        : item),
+    }))
+  }
+
   const removeFinding = (findingId: string) => {
     updateInspection((current) => ({
       ...current,
-      findings: current.findings.filter((item) => item.id !== findingId),
+      findings: current.findings.map((item) => item.id === findingId
+        ? { ...item, hidden: true, updatedAt: new Date().toISOString() }
+        : item),
+      hiddenFindingIds: [...new Set([...(current.hiddenFindingIds ?? []), findingId])],
+    }))
+  }
+
+  const availableGraphFindings = useMemo(
+    () => {
+      const graphKey = inspection.property?.graphKey || "manual"
+      const detected = new Map(graphFindingsFor(graphKey, inspection.markers).map((finding) => [finding.markerType, finding]))
+      return INSPECTION_FINDING_CATALOG.map((catalogItem) => detected.get(catalogItem.type) || ({
+        id: `finding-${catalogItem.type}`,
+        source: "custom" as const,
+        markerType: catalogItem.type,
+        title: catalogItem.title,
+        summary: "",
+        category: catalogItem.category,
+        tag: catalogItem.category === "insectFindings" ? "Priority" : catalogItem.category === "moistureFindings" ? "Watch" : "Inspection",
+        markerIds: [],
+        photoIds: [],
+        status: "pending_review" as const,
+        customerVisible: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }))
+    },
+    [inspection.markers, inspection.property?.graphKey],
+  )
+
+  const toggleGraphFinding = (findingId: string) => {
+    const candidate = availableGraphFindings.find((finding) => finding.id === findingId)
+    if (!candidate) return
+    const selected = inspection.findings.find((finding) => finding.id === findingId || finding.markerType === candidate.markerType)
+    if (selected && !selected.hidden) {
+      removeFinding(selected.id)
+      return
+    }
+    updateInspection((current) => ({
+      ...current,
+      findings: selected
+        ? current.findings.map((item) => item.id === selected.id ? { ...item, hidden: false, updatedAt: new Date().toISOString() } : item)
+        : [...current.findings, candidate],
+      hiddenFindingIds: (current.hiddenFindingIds ?? []).filter((id) => id !== selected?.id),
     }))
   }
 
   const updateWorkflowData = (workflowData: SalesBrainWorkflowData) => {
-    updateInspection((current) => ({ ...current, workflowData }))
+    const normalized = normalizeSalesBrainWorkflowData(workflowData)
+    const costing = calculateCosting(normalized.costing)
+    updateInspection((current) => ({
+      ...current,
+      workflowData: normalized,
+      pricingSnapshot: current.pricingSnapshot && costing.sellingPriceCents > 0
+        ? { ...current.pricingSnapshot, totalCents: costing.sellingPriceCents }
+        : current.pricingSnapshot,
+    }))
   }
 
-  const setEstimateStatus = (status: SalesInspection["status"]) => {
-    updateInspection((current) => ({ ...current, status }))
+  const setEstimateStatus = async (status: SalesInspection["status"]) => {
+    const now = new Date().toISOString()
+    updateInspection((current) => ({
+      ...current,
+      status,
+      ...(status === "sent" ? { sentAt: now } : {}),
+      ...(status === "accepted" ? { acceptedAt: now } : {}),
+      ...(status === "declined" ? { declinedAt: now } : {}),
+    }))
+    try {
+      const saved = await estimatesServiceRef.current!.saveEstimate(normalizeInspection({
+        ...inspection,
+        status,
+        updatedAt: now,
+        ...(status === "sent" ? { sentAt: now } : {}),
+        ...(status === "accepted" ? { acceptedAt: now } : {}),
+        ...(status === "declined" ? { declinedAt: now } : {}),
+      }))
+      setInspection(normalizeInspection(saved))
+      await Promise.all([loadEstimates(), refreshOperations()])
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Unable to update quote status.")
+    }
   }
 
-  const addCustomNote = (summary: string) => {
-    const normalized = summary.trim()
-    if (!normalized) return
+  const addCustomNote = (summary = "") => {
+    const existing = inspection.findings.find((item) => item.source === "custom" && item.title === "Additional Inspection Finding or Comment")
+    if (existing) {
+      updateInspection((current) => ({
+        ...current,
+        findings: current.findings.map((item) => item.id === existing.id ? { ...item, hidden: false } : item),
+      }))
+      return
+    }
     updateInspection((current) => {
       const now = new Date().toISOString()
       return {
@@ -1045,10 +1352,11 @@ export function useSalesWorkflow() {
         findings: [...current.findings, {
           id: `custom-note-${createEstimateId()}`,
           source: "custom",
-          title: "Technician note",
-          summary: normalized,
+          title: "Additional Inspection Finding or Comment",
+          summary: summary.trim(),
           category: "review",
           tag: "Note",
+          customerVisible: true,
           markerIds: [],
           photoIds: [],
           status: "pending_review",
@@ -1059,22 +1367,58 @@ export function useSalesWorkflow() {
     })
   }
 
+  const uploadQueuedPhoto = async (photoId: string) => {
+    const pending = pendingPhotoFilesRef.current.get(photoId)
+    if (!pending) return
+    updateInspection((current) => ({ ...current, photos: current.photos.map((item) => item.id === photoId ? { ...item, uploadStatus: "uploading", uploadError: undefined } : item) }))
+    try {
+      const photo = await estimatesServiceRef.current!.uploadPhoto(inspection.id, pending.file)
+      updateInspection((current) => ({
+        ...current,
+        photos: current.photos.map((item) => item.id === photoId
+          ? { ...photo, caption: item.caption || photo.caption, customerVisible: item.customerVisible ?? true, findingIds: item.findingIds, uploadStatus: "ready" }
+          : item),
+      }))
+      URL.revokeObjectURL(pending.previewUrl)
+      pendingPhotoFilesRef.current.delete(photoId)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to save inspection photo."
+      updateInspection((current) => ({ ...current, photos: current.photos.map((item) => item.id === photoId ? { ...item, uploadStatus: "error", uploadError: message } : item) }))
+      setSaveError(message)
+    }
+  }
+
   const addPhotos = (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []).slice(0, 4)
     event.target.value = ""
-    void Promise.all(files.map(async (file) => {
-      try {
-        const photo = await estimatesServiceRef.current!.uploadPhoto(inspection.id, file)
-        updateInspection((current) => ({ ...current, photos: [...current.photos, photo] }))
-      } catch (error) {
-        setSaveError(error instanceof Error ? error.message : "Unable to save inspection photo.")
-      }
+    const queued = files.map((file) => ({
+      file,
+      preview: {
+        id: `upload-${createEstimateId()}`,
+        source: "legacy-inline" as const,
+        url: URL.createObjectURL(file),
+        caption: file.name,
+        byteSize: file.size,
+        customerVisible: true,
+        uploadStatus: "uploading" as const,
+      },
     }))
+    queued.forEach(({ file, preview }) => pendingPhotoFilesRef.current.set(preview.id, { file, previewUrl: preview.url }))
+    updateInspection((current) => ({ ...current, photos: [...current.photos, ...queued.map((item) => item.preview)] }))
+    void Promise.all(queued.map(({ preview }) => uploadQueuedPhoto(preview.id)))
+  }
+
+  const retryPhoto = async (photoId: string) => uploadQueuedPhoto(photoId)
+
+  const updatePhoto = (photoId: string, patch: Partial<Pick<SalesInspection["photos"][number], "caption" | "customerVisible" | "findingIds">>) => {
+    updateInspection((current) => ({ ...current, photos: current.photos.map((photo) => photo.id === photoId ? { ...photo, ...patch } : photo) }))
   }
 
   const removePhoto = async (photoId: string) => {
     const photo = inspection.photos.find((item) => item.id === photoId)
     if (!photo) return
+    pendingPhotoFilesRef.current.delete(photoId)
+    if (photo.url.startsWith("blob:")) URL.revokeObjectURL(photo.url)
     updateInspection((current) => ({
       ...current,
       photos: current.photos.filter((item) => item.id !== photoId),
@@ -1105,6 +1449,8 @@ export function useSalesWorkflow() {
     selectCustomRecommendation,
     photos,
     addPhotos,
+    updatePhoto,
+    retryPhoto,
     removePhoto,
     fileInputRef,
     polishFindingWording,
@@ -1137,14 +1483,18 @@ export function useSalesWorkflow() {
     propertyGraphSaved,
     handleGraphSaved,
     findings: inspection.findings,
+    availableGraphFindings,
+    toggleGraphFinding,
     addCustomNote,
     updateFindingSummary,
+    updateFindingDetails,
     removeFinding,
     isMockFindingsData: shouldUseMockFindings(),
     stepSummaries,
     startNewEstimate,
     updateWorkflowData,
     setEstimateStatus,
+    createProposalPdf,
     saveEstimate,
     isSaving,
     savedAt,
@@ -1174,6 +1524,45 @@ export function useSalesWorkflow() {
     createPricebookService,
     updatePricebookService,
     deactivatePricebookService,
+    dashboardData,
+    operationsLoading,
+    operationsError,
+    refreshOperations,
+    createLead,
+    updateLead,
+    leadActivities,
+    loadLeadActivities,
+    addLeadActivity,
+    products,
+    laborRoles,
+    costingSettings,
+    createProduct,
+    updateProduct,
+    deactivateProduct,
+    createLaborRole,
+    updateLaborRole,
+    deactivateLaborRole,
+    saveCostingSettings,
+    servicePackages,
+    employeeProfile,
+    employeeProfiles,
+    generatedDocuments,
+    deliveries,
+    signatureRequest,
+    pestPacHandoff,
+    providerActionLoading,
+    createServicePackage,
+    updateServicePackage,
+    deactivateServicePackage,
+    loadEmployeeProfiles,
+    updateEmployeeProfile,
+    migrateLegacyData,
+    loadProviderState,
+    createCustomerDocument,
+    sendCustomerDocument,
+    requestCustomerSignature,
+    savePestPacHandoffRecord,
+    graphNotes: inspection.markers.filter((marker) => marker.type === "treatmentNote" || marker.type === "notePoint"),
   }
 }
 

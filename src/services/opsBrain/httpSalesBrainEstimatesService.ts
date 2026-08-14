@@ -84,6 +84,56 @@ export class HttpSalesBrainEstimatesService
     }
   }
 
+  async updateStatus(id: string, status: SalesInspection["status"]): Promise<SalesInspection> {
+    const data = await this.request<EstimateResponse>(
+      `/sales-brain/estimates/${encodeURIComponent(id)}/status`,
+      { method: "PATCH", body: JSON.stringify({ status }) },
+    )
+    return data.estimate
+  }
+
+  async createProposalPdf(id: string) {
+    return this.request<{ key: string; name: string; url: string }>(
+      `/sales-brain/estimates/${encodeURIComponent(id)}/proposal.pdf`,
+      { method: "POST" },
+    )
+  }
+
+  async createDocument(id: string, type: import("../../types/sales-operations").SalesDocumentType) {
+    return this.request<{ document: import("../../types/sales-operations").SalesGeneratedDocument; key: string; name: string; url: string }>(
+      `/sales-brain/estimates/${encodeURIComponent(id)}/documents`,
+      { method: "POST", body: JSON.stringify({ type }) },
+    )
+  }
+
+  async listDocuments(id: string) {
+    return (await this.request<{ documents: import("../../types/sales-operations").SalesGeneratedDocument[] }>(`/sales-brain/estimates/${encodeURIComponent(id)}/documents`)).documents
+  }
+
+  async sendDelivery(id: string, input: import("../../types/sales-operations").SalesDeliveryInput) {
+    return this.request<{ delivery: import("../../types/sales-operations").SalesDeliveryEvent; duplicate: boolean }>(`/sales-brain/estimates/${encodeURIComponent(id)}/deliveries`, { method: "POST", body: JSON.stringify(input) })
+  }
+
+  async listDeliveries(id: string) {
+    return (await this.request<{ deliveries: import("../../types/sales-operations").SalesDeliveryEvent[] }>(`/sales-brain/estimates/${encodeURIComponent(id)}/deliveries`)).deliveries
+  }
+
+  async createSignatureRequest(id: string, input: { customerEmail: string; customerName: string; selectedOptionId: string; message: string; idempotencyKey: string }) {
+    return this.request<{ signatureRequest: import("../../types/sales-operations").SalesSignatureRequest; duplicate: boolean }>(`/sales-brain/estimates/${encodeURIComponent(id)}/signature-request`, { method: "POST", body: JSON.stringify(input) })
+  }
+
+  async getSignatureRequest(id: string) {
+    return (await this.request<{ signatureRequest: import("../../types/sales-operations").SalesSignatureRequest | null }>(`/sales-brain/estimates/${encodeURIComponent(id)}/signature-request`)).signatureRequest
+  }
+
+  async getPestPacHandoff(id: string) {
+    return (await this.request<{ handoff: import("../../types/sales-operations").PestPacHandoff | null }>(`/sales-brain/estimates/${encodeURIComponent(id)}/pestpac-handoff`)).handoff
+  }
+
+  async savePestPacHandoff(id: string, input: import("../../types/sales-operations").PestPacHandoff & { complete?: boolean }) {
+    return (await this.request<{ handoff: import("../../types/sales-operations").PestPacHandoff }>(`/sales-brain/estimates/${encodeURIComponent(id)}/pestpac-handoff`, { method: "PATCH", body: JSON.stringify(input) })).handoff
+  }
+
   async uploadPhoto(estimateId: string, file: File): Promise<PhotoReference> {
     const form = new FormData()
     form.set("photo", file)

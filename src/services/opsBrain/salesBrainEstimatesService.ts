@@ -11,6 +11,7 @@ import type {
   SalesInspectionStatus,
 } from "../../types/sales-inspection"
 import type { PhotoReference } from "../../types/property"
+import type { PestPacHandoff, SalesDeliveryEvent, SalesDeliveryInput, SalesDocumentType, SalesGeneratedDocument, SalesSignatureRequest } from "../../types/sales-operations"
 
 export interface SalesBrainEstimateListItem {
   id: string
@@ -23,6 +24,13 @@ export interface SalesBrainEstimateListItem {
   locationName: string | null
   locationAddress: string | null
   totalCents: number | null
+  directCostCents?: number | null
+  grossProfitCents?: number | null
+  marginBps?: number | null
+  leadId?: string | null
+  sentAt?: string | null
+  acceptedAt?: string | null
+  declinedAt?: string | null
 }
 
 export interface SalesBrainEstimatesService {
@@ -32,6 +40,16 @@ export interface SalesBrainEstimatesService {
   listEstimates(): Promise<SalesBrainEstimateListItem[]>
   /** Fetch the full saved inspection by id. Missing records return null. */
   getEstimate(id: string): Promise<SalesInspection | null>
+  updateStatus(id: string, status: SalesInspectionStatus): Promise<SalesInspection>
+  createProposalPdf(id: string): Promise<{ key: string; name: string; url: string }>
+  createDocument(id: string, type: SalesDocumentType): Promise<{ document: SalesGeneratedDocument; key: string; name: string; url: string }>
+  listDocuments(id: string): Promise<SalesGeneratedDocument[]>
+  sendDelivery(id: string, input: SalesDeliveryInput): Promise<{ delivery: SalesDeliveryEvent; duplicate: boolean }>
+  listDeliveries(id: string): Promise<SalesDeliveryEvent[]>
+  createSignatureRequest(id: string, input: { customerEmail: string; customerName: string; selectedOptionId: string; message: string; idempotencyKey: string }): Promise<{ signatureRequest: SalesSignatureRequest; duplicate: boolean }>
+  getSignatureRequest(id: string): Promise<SalesSignatureRequest | null>
+  getPestPacHandoff(id: string): Promise<PestPacHandoff | null>
+  savePestPacHandoff(id: string, input: PestPacHandoff & { complete?: boolean }): Promise<PestPacHandoff>
   uploadPhoto(estimateId: string, file: File): Promise<PhotoReference>
   deletePhoto(photo: PhotoReference): Promise<void>
 }

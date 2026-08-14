@@ -6,6 +6,7 @@
 
 import type { SalesInspection } from "../../types/sales-inspection"
 import type { PhotoReference } from "../../types/property"
+import type { PestPacHandoff, SalesDeliveryEvent, SalesDeliveryInput, SalesDocumentType, SalesGeneratedDocument, SalesSignatureRequest } from "../../types/sales-operations"
 import type {
   SalesBrainEstimateListItem,
   SalesBrainEstimatesService,
@@ -34,6 +35,10 @@ export class MockSalesBrainEstimatesService
   implements SalesBrainEstimatesService
 {
   private readonly estimates = new Map<string, SalesInspection>()
+  private readonly documents = new Map<string, SalesGeneratedDocument[]>()
+  private readonly deliveries = new Map<string, SalesDeliveryEvent[]>()
+  private readonly signatures = new Map<string, SalesSignatureRequest>()
+  private readonly handoffs = new Map<string, PestPacHandoff>()
 
   async saveEstimate(estimate: SalesInspection): Promise<SalesInspection> {
     const existing = this.estimates.get(estimate.id)
@@ -57,6 +62,50 @@ export class MockSalesBrainEstimatesService
     const estimate = this.estimates.get(id)
     return estimate ? clone(estimate) : null
   }
+
+  async updateStatus(id: string, status: SalesInspection["status"]): Promise<SalesInspection> {
+    const estimate = this.estimates.get(id)
+    if (!estimate) throw new Error("Estimate not found.")
+    const now = new Date().toISOString()
+    const saved = {
+      ...estimate,
+      status,
+      updatedAt: now,
+      ...(status === "sent" ? { sentAt: now } : {}),
+      ...(status === "accepted" ? { acceptedAt: now } : {}),
+      ...(status === "declined" ? { declinedAt: now } : {}),
+    }
+    this.estimates.set(id, saved)
+    return clone(saved)
+  }
+
+  async createProposalPdf(id: string) {
+    if (!this.estimates.has(id)) throw new Error("Estimate not found.")
+    return { key: `mock/proposals/${id}.pdf`, name: `${id}.pdf`, url: "#" }
+  }
+
+  async createDocument(id: string, type: SalesDocumentType) {
+    if (!this.estimates.has(id)) throw new Error("Estimate not found.")
+    const document: SalesGeneratedDocument = { id: crypto.randomUUID(), quoteId: id, type, r2Key: `mock/documents/${id}/${type}.pdf`, filename: `${id}-${type}.pdf`, createdBy: "local", createdAt: new Date().toISOString() }
+    this.documents.set(id, [document, ...(this.documents.get(id) || [])])
+    return { document, key: document.r2Key, name: document.filename, url: "#" }
+  }
+
+  async listDocuments(id: string) { return clone(this.documents.get(id) || []) }
+  async sendDelivery(id: string, input: SalesDeliveryInput) {
+    const delivery: SalesDeliveryEvent = { id: crypto.randomUUID(), quoteId: id, documentType: input.documentType, provider: "gmail", status: "sent", recipient: input.to, cc: input.cc, bcc: input.bcc, subject: input.subject, message: input.message, providerMessageId: `mock-${crypto.randomUUID()}`, createdAt: new Date().toISOString(), completedAt: new Date().toISOString() }
+    this.deliveries.set(id, [delivery, ...(this.deliveries.get(id) || [])])
+    return { delivery, duplicate: false }
+  }
+  async listDeliveries(id: string) { return clone(this.deliveries.get(id) || []) }
+  async createSignatureRequest(id: string, input: { customerEmail: string; customerName: string; selectedOptionId: string; message: string; idempotencyKey: string }) {
+    const request: SalesSignatureRequest = { id: crypto.randomUUID(), quoteId: id, provider: "boldsign", status: "pending", customerEmail: input.customerEmail, selectedOptionId: input.selectedOptionId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+    this.signatures.set(id, request)
+    return { signatureRequest: request, duplicate: false }
+  }
+  async getSignatureRequest(id: string) { return clone(this.signatures.get(id) || null) }
+  async getPestPacHandoff(id: string) { return clone(this.handoffs.get(id) || null) }
+  async savePestPacHandoff(id: string, input: PestPacHandoff & { complete?: boolean }) { const handoff = { ...input, quoteId: id, status: input.complete ? "completed" as const : "pending" as const }; this.handoffs.set(id, handoff); return clone(handoff) }
 
   async uploadPhoto(estimateId: string, file: File): Promise<PhotoReference> {
     return {

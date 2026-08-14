@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { AlertTriangle, ChevronRight, FileText, RefreshCw, Search } from 'lucide-react'
+import { AlertTriangle, CheckCircle, ChevronRight, FileText, Percent, RefreshCw, Search, TrendingUp } from 'lucide-react'
 
 import type { SalesBrainEstimateListItem } from '../services/opsBrain'
 
@@ -9,6 +9,12 @@ interface Props {
   error: string | null
   onOpen: (id: string) => void
   onRefresh: () => void
+  metrics?: {
+    acceptedCount: number
+    acceptedRevenueCents: number
+    closeRatePercent: number | null
+    averageMarginPercent: number | null
+  }
 }
 
 const statusStyle: Record<string, string> = {
@@ -18,7 +24,7 @@ const statusStyle: Record<string, string> = {
   declined: 'bg-danger-light text-danger',
 }
 
-export default function QuoteHistory({ estimates, loading, error, onOpen, onRefresh }: Props) {
+export default function QuoteHistory({ estimates, loading, error, onOpen, onRefresh, metrics }: Props) {
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState('all')
   const filtered = useMemo(() => {
@@ -38,6 +44,12 @@ export default function QuoteHistory({ estimates, loading, error, onOpen, onRefr
           <p className="text-sm text-steel">Saved Sales Brain records from authenticated Ops Brain storage</p>
         </div>
         <button onClick={onRefresh} className="text-sm text-brand-red font-semibold flex items-center gap-1"><RefreshCw size={15} /> Refresh</button>
+      </div>
+
+      <div className="grid sm:grid-cols-3 gap-3 mb-4">
+        <Metric icon={CheckCircle} label="Accepted" value={`$${((metrics?.acceptedRevenueCents || 0) / 100).toLocaleString()}`} sub={`${metrics?.acceptedCount || 0} accepted quote${metrics?.acceptedCount === 1 ? '' : 's'}`} />
+        <Metric icon={TrendingUp} label="Close Rate" value={metrics?.closeRatePercent == null ? '—' : `${metrics.closeRatePercent.toFixed(1)}%`} sub="Accepted / decided · 30 days" />
+        <Metric icon={Percent} label="Average Margin" value={metrics?.averageMarginPercent == null ? '—' : `${metrics.averageMarginPercent.toFixed(1)}%`} sub="Accepted quotes with costing" />
       </div>
 
       <div className="grid md:grid-cols-[1fr_auto] gap-2 mb-4">
@@ -66,4 +78,8 @@ export default function QuoteHistory({ estimates, loading, error, onOpen, onRefr
       </div>
     </div>
   )
+}
+
+function Metric({ icon: Icon, label, value, sub }: { icon: typeof CheckCircle; label: string; value: string; sub: string }) {
+  return <div className="bg-white rounded-2xl p-4 shadow-sm"><div className="flex items-center gap-2 text-brand-red"><Icon size={18} /><span className="text-xs font-bold uppercase tracking-wide">{label}</span></div><div className="font-display text-3xl font-bold text-brand-dark mt-2">{value}</div><div className="text-xs text-steel mt-1">{sub}</div></div>
 }

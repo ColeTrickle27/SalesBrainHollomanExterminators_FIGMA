@@ -80,8 +80,14 @@ export interface InspectionFinding {
   /** Graph-derived observations and technician notes must not overwrite each other. */
   source?: "graph" | "custom" | "legacy";
   sourceGraphKey?: string;
+  /** Canonical BugMan Graphs marker type used for one-card-per-type grouping. */
+  markerType?: MarkerType;
   /** Prevents a later graph refresh from replacing technician edits. */
   userEdited?: boolean;
+  /** Hidden findings retain their technician edits and return unchanged when reselected. */
+  hidden?: boolean;
+  /** Customer-facing by default; staff can explicitly hide a finding from reports. */
+  customerVisible?: boolean;
   title: string;
   /** Homeowner-facing description. May start as the marker observation verbatim. */
   summary: string;

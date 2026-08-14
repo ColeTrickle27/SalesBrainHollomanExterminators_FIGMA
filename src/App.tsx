@@ -14,7 +14,7 @@ import InspectionWizard from './screens/InspectionWizard'
 import ProposalPreview from './screens/ProposalPreview'
 import QuoteHistory from './screens/QuoteHistory'
 import type { CustomerSearchResult } from './types/customer'
-import { createEmptySalesBrainWorkflowData } from './types/figma-workflow'
+import { normalizeSalesBrainWorkflowData } from './types/figma-workflow'
 
 type Screen = 'dashboard' | 'customer-search' | 'wizard' | 'presentation' | 'proposal' | 'quote-history' | 'admin-detail'
 
@@ -80,15 +80,15 @@ export default function App() {
     go('wizard')
   }
 
-  const workflowData = workflow.inspection.workflowData ?? createEmptySalesBrainWorkflowData()
+  const workflowData = normalizeSalesBrainWorkflowData(workflow.inspection.workflowData)
   const initials = useMemo(() => {
     const name = workflow.currentUser?.name || ''
     return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '—'
   }, [workflow.currentUser?.name])
 
   if (screen === 'customer-search') return <CustomerSearch onSelectCustomer={selectCustomer} onClose={() => go('dashboard')} />
-  if (screen === 'presentation') return <CustomerPresentation inspection={workflow.inspection} workflowData={workflowData} onClose={() => go('wizard')} onProposal={() => go('proposal')} />
-  if (screen === 'proposal') return <ProposalPreview inspection={workflow.inspection} workflowData={workflowData} onClose={() => go('wizard')} />
+  if (screen === 'presentation') return <CustomerPresentation inspection={workflow.inspection} workflowData={workflowData} services={workflow.pricebookServices} onChange={workflow.updateWorkflowData} onClose={() => go('wizard')} onContinue={() => { workflow.updateWorkflowData({ ...workflowData, currentStep: 9 }); void workflow.saveEstimate(); go('wizard') }} />
+  if (screen === 'proposal') return <ProposalPreview inspection={workflow.inspection} workflowData={workflowData} onClose={() => go('wizard')} onGeneratePdf={workflow.createProposalPdf} />
 
   return (
     <div className="min-h-screen bg-surface flex flex-col">
@@ -113,7 +113,7 @@ export default function App() {
       </header>
 
       <main className="flex-1 overflow-y-auto">
-        {screen === 'dashboard' ? <Dashboard user={workflow.currentUser} userLoading={workflow.currentUserLoading} estimates={workflow.estimates} estimatesLoading={workflow.estimatesLoading} estimatesError={workflow.estimatesError} onStartInspection={beginCustomerSearch} onOpenEstimate={(id) => void openEstimate(id)} onRefresh={() => void workflow.loadEstimates()} /> : null}
+        {screen === 'dashboard' ? <Dashboard user={workflow.currentUser} userLoading={workflow.currentUserLoading} estimates={workflow.estimates} data={workflow.dashboardData} loading={workflow.estimatesLoading || workflow.operationsLoading} error={workflow.estimatesError || workflow.operationsError} leadActivities={workflow.leadActivities} onStartInspection={beginCustomerSearch} onOpenEstimate={(id) => void openEstimate(id)} onRefresh={() => void Promise.all([workflow.loadEstimates(), workflow.refreshOperations()])} onCreateLead={workflow.createLead} onUpdateLead={workflow.updateLead} onLoadActivities={workflow.loadLeadActivities} onAddActivity={workflow.addLeadActivity} /> : null}
         {screen === 'wizard' && !workflow.selectedCustomer ? <ActiveQuoteLanding estimates={workflow.estimates} loading={workflow.estimatesLoading} onNewQuote={beginCustomerSearch} onOpenEstimate={(id) => void openEstimate(id)} /> : null}
         {screen === 'wizard' && workflow.selectedCustomer ? <InspectionWizard
           inspection={workflow.inspection}
@@ -121,6 +121,19 @@ export default function App() {
           pricebookServices={workflow.pricebookServices}
           pricebookLoading={workflow.pricebookLoading}
           pricebookError={workflow.pricebookError}
+          products={workflow.products}
+          laborRoles={workflow.laborRoles}
+          costingSettings={workflow.costingSettings}
+          servicePackages={workflow.servicePackages}
+          currentUser={workflow.currentUser}
+          employeeProfile={workflow.employeeProfile}
+          generatedDocuments={workflow.generatedDocuments}
+          deliveries={workflow.deliveries}
+          signatureRequest={workflow.signatureRequest}
+          pestPacHandoff={workflow.pestPacHandoff}
+          providerActionLoading={workflow.providerActionLoading}
+          graphNotes={workflow.graphNotes}
+          availableGraphFindings={workflow.availableGraphFindings}
           onWorkflowDataChange={workflow.updateWorkflowData}
           onSelectService={workflow.confirmRecommendation}
           onSave={() => void workflow.saveEstimate()}
@@ -132,22 +145,54 @@ export default function App() {
           onOpenGraph={workflow.openBugmanGraphsChoice}
           onAddFinding={workflow.addCustomNote}
           onUpdateFinding={workflow.updateFindingSummary}
+          onUpdateFindingDetails={workflow.updateFindingDetails}
           onRemoveFinding={workflow.removeFinding}
+          onToggleGraphFinding={workflow.toggleGraphFinding}
           onAddPhotos={workflow.addPhotos}
+          onUpdatePhoto={workflow.updatePhoto}
+          onRetryPhoto={workflow.retryPhoto}
           onRemovePhoto={(id) => void workflow.removePhoto(id)}
           photoInputRef={workflow.fileInputRef}
-          onAccept={() => workflow.setEstimateStatus('accepted')}
+          onStatusChange={workflow.setEstimateStatus}
+          onAddQuoteActivity={async (input) => {
+            if (!workflow.inspection.leadId) throw new Error('Link this quote to a lead before logging interactions.')
+            await workflow.addLeadActivity(workflow.inspection.leadId, input)
+          }}
+          onLoadProviderState={workflow.loadProviderState}
+          onCreateDocument={workflow.createCustomerDocument}
+          onSendDelivery={workflow.sendCustomerDocument}
+          onRequestSignature={workflow.requestCustomerSignature}
+          onSavePestPacHandoff={workflow.savePestPacHandoffRecord}
         /> : null}
-        {screen === 'quote-history' ? <QuoteHistory estimates={workflow.estimates} loading={workflow.estimatesLoading} error={workflow.estimatesError} onOpen={(id) => void openEstimate(id)} onRefresh={() => void workflow.loadEstimates()} /> : null}
+        {screen === 'quote-history' ? <QuoteHistory estimates={workflow.estimates} loading={workflow.estimatesLoading} error={workflow.estimatesError} metrics={workflow.dashboardData?.metrics} onOpen={(id) => void openEstimate(id)} onRefresh={() => void Promise.all([workflow.loadEstimates(), workflow.refreshOperations()])} /> : null}
         {screen === 'admin-detail' ? <AdminDetail
           services={workflow.pricebookServices}
           loading={workflow.pricebookLoading}
           error={workflow.pricebookError}
           saving={workflow.pricebookSaving}
-          onRefresh={() => void workflow.refreshPricebook()}
+          onRefresh={() => void Promise.all([workflow.refreshPricebook(), workflow.refreshOperations()])}
           onCreate={workflow.createPricebookService}
           onUpdate={workflow.updatePricebookService}
           onDeactivate={workflow.deactivatePricebookService}
+          products={workflow.products}
+          laborRoles={workflow.laborRoles}
+          costingSettings={workflow.costingSettings}
+          servicePackages={workflow.servicePackages}
+          employeeProfiles={workflow.employeeProfiles}
+          currentUser={workflow.currentUser}
+          onCreateProduct={workflow.createProduct}
+          onUpdateProduct={workflow.updateProduct}
+          onDeactivateProduct={workflow.deactivateProduct}
+          onCreateLaborRole={workflow.createLaborRole}
+          onUpdateLaborRole={workflow.updateLaborRole}
+          onDeactivateLaborRole={workflow.deactivateLaborRole}
+          onSaveCostingSettings={workflow.saveCostingSettings}
+          onCreateServicePackage={workflow.createServicePackage}
+          onUpdateServicePackage={workflow.updateServicePackage}
+          onDeactivateServicePackage={workflow.deactivateServicePackage}
+          onLoadEmployeeProfiles={workflow.loadEmployeeProfiles}
+          onUpdateEmployeeProfile={workflow.updateEmployeeProfile}
+          onRunLegacyImport={workflow.migrateLegacyData}
         /> : null}
       </main>
 

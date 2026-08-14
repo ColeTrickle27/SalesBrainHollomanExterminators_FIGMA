@@ -35,6 +35,7 @@ export interface SalesInspection {
   id: string
   /** e.g. "HE-2641" -- human-facing estimate number, independent of PestPac IDs. */
   estimateNumber: string
+  leadId?: string
 
   billTo?: CustomerBillTo
   location?: CustomerLocation
@@ -46,6 +47,10 @@ export interface SalesInspection {
   photos: PhotoReference[]
   /** Graph photos removed from this report; they remain owned by the graph. */
   excludedGraphPhotoIds?: string[]
+  /** Graph-derived finding groups intentionally dismissed by the technician. */
+  dismissedGraphFindingIds?: string[]
+  /** Finding cards hidden in the UI without deleting their saved content. */
+  hiddenFindingIds?: string[]
 
   recommendations: ServiceRecommendation[]
   /** The recommendation currently highlighted in the Recommended Service step, if any. */
@@ -60,6 +65,13 @@ export interface SalesInspection {
   completedSteps: WorkflowStepId[]
 
   status: SalesInspectionStatus
+  sentAt?: string
+  acceptedAt?: string
+  declinedAt?: string
+  proposalR2Key?: string
+  signatureStatus?: "not_requested" | "pending" | "sent" | "viewed" | "signed" | "completed" | "declined" | "expired" | "send_failed" | "revoked"
+  boldSignDocumentId?: string
+  pestPacHandoffStatus?: "not_ready" | "pending" | "completed"
   /** Set only after the technician explicitly builds the customer report. */
   reportBuiltAt?: string
   createdBy: string

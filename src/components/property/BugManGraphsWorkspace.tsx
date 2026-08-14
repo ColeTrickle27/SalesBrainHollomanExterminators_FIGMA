@@ -3,30 +3,27 @@
  * INTEGRATION BOUNDARY: BugMan Graphs (Property step)
  * ============================================================================
  * BugMan Graphs is a separate Flutter web application (ColeTrickle27/
- * BugManInspects), already deployed as a static web build inside Holloman
- * Ops Brain at `/bugman-graphs/` and reachable standalone at
- * graphs.holloman-ext.com. Sales Brain does NOT reimplement diagramming,
+ * BugManInspects), deployed at graphs.holloman-ext.com and opened here from
+ * the mounted Ops Brain SalesBrain application. Sales Brain does NOT
+ * reimplement diagramming,
  * wall drawing, or marker placement -- this component is the ONLY place
  * Sales Brain talks to that surface, and it does so by embedding the real
- * app in an iframe, matching how Ops Brain itself hosts it.
+ * app in a CSP-allowlisted iframe with a new-tab fallback.
  *
  * Ops Brain's CORS allowlist for the underlying /api/bugman-graphs/* routes
  * (see functions/api/[[path]].js -> BUGMAN_GRAPH_ORIGINS) currently permits
  * only https://graphs.holloman-ext.com and https://bugman-graphs.pages.dev.
- * Until Sales Brain's own deployment origin is added to that allowlist (or
- * Sales Brain is mounted under Ops Brain per the long-term architecture),
- * this iframe will load the real app's UI but graph save/load calls made
- * from inside it will still authenticate against Ops Brain's own session
- * cookie on Ops Brain's origin, not Sales Brain's -- there is nothing to fix
- * here, that's simply how the boundary is designed to work.
+ * Graph save/load requests authenticate against the existing Ops Brain
+ * session and Customer Files identity.
  *
  * Do not add drawing/canvas/marker-placement code to this file. If BugMan
- * Graphs' embed contract changes (e.g. adds postMessage events), extend the
+ * Graphs' embed contract changes, update the verified `bugman-graph:saved`
  * listener below -- don't reach into the iframe's DOM.
  * ============================================================================
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { ExternalLink } from "lucide-react";
 import { createBugManGraphsService } from "../../services/bugmanGraphs";
 
 export interface BugManGraphsWorkspaceProps {
@@ -36,19 +33,19 @@ export interface BugManGraphsWorkspaceProps {
   locationNumber: string;
   graphKey?: string;
   /**
-   * Real Property-step completion signal. Called when BugMan Graphs
-   * postMessages "bugman-graph:saved" (see handler below). Not implemented
-   * upstream in BugManInspects yet, so this currently never fires in
-   * practice -- Property can only be marked complete once it does. See
+   * Real Property-step completion signal. The deployed Graphs editor emits
+   * the R2 key and Customer File identity after a successful remote save. See
    * docs/SALES_BRAIN_ARCHITECTURE.md §18.
    */
-  onGraphSaved?: (payload: { graphKey?: string }) => void;
+  onGraphSaved?: (payload: { graphKey?: string; billToNumber?: string; locationNumber?: string }) => void;
 }
 
 export function BugManGraphsWorkspace({ open, onClose, billToNumber, locationNumber, graphKey, onGraphSaved }: BugManGraphsWorkspaceProps) {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [embedUrl, setEmbedUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const popupRef = useRef<Window | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -72,23 +69,24 @@ export function BugManGraphsWorkspace({ open, onClose, billToNumber, locationNum
     };
   }, [open, billToNumber, locationNumber, graphKey]);
 
-  // Handshake: BugMan Graphs may eventually postMessage a
-  // "bugman-graph:saved" event with { graphKey } when a technician saves
-  // inside the embedded app. Not implemented upstream in BugManInspects yet,
-  // so onGraphSaved currently never fires in the real product -- but the
-  // wiring is real (not a stub) so Property completion flips the moment
-  // BugManInspects starts sending this event, with no further changes needed
-  // here.
+  // The event is trusted only when origin, source window, graph key, Bill-To,
+  // and location all match the workspace that SalesBrain opened.
   useEffect(() => {
     if (!open) return;
     function handleMessage(event: MessageEvent) {
-      if (event.data?.type === "bugman-graph:saved") {
-        onGraphSaved?.({ graphKey: event.data?.graphKey });
+      const expectedOrigin = embedUrl ? new URL(embedUrl).origin : null;
+      const trustedSource = event.source === iframeRef.current?.contentWindow || event.source === popupRef.current;
+      if (event.origin !== expectedOrigin || !trustedSource) return;
+      if (event.data?.type === "bugman-graph:saved"
+        && typeof event.data?.graphKey === "string"
+        && event.data?.billToNumber === billToNumber
+        && event.data?.locationNumber === locationNumber) {
+        onGraphSaved?.({ graphKey: event.data.graphKey, billToNumber, locationNumber });
       }
     }
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [open, onGraphSaved]);
+  }, [billToNumber, embedUrl, locationNumber, open, onGraphSaved]);
 
   if (!open) return null;
 
@@ -113,6 +111,7 @@ export function BugManGraphsWorkspace({ open, onClose, billToNumber, locationNum
           )}
           {status === "ready" && embedUrl && (
             <iframe
+              ref={iframeRef}
               title="BugMan Graphs"
               src={embedUrl}
               className="h-full w-full border-0"
@@ -123,6 +122,7 @@ export function BugManGraphsWorkspace({ open, onClose, billToNumber, locationNum
               allow="clipboard-write"
             />
           )}
+          {status === "ready" && embedUrl ? <button onClick={() => { popupRef.current = window.open(embedUrl, "bugman-graphs") }} className="absolute right-3 top-3 rounded-xl bg-white/95 px-3 py-2 text-xs font-bold text-[#173a30] shadow flex items-center gap-1"><ExternalLink size={13} /> Open in new tab</button> : null}
         </div>
       </div>
     </div>

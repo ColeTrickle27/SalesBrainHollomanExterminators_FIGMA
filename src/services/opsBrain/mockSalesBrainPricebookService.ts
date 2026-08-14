@@ -10,18 +10,24 @@ const INITIAL_SERVICES: PricebookServiceInput[] = [
     description: "Best value · annual coverage",
     price: 184000,
     category: "Protection",
+    priceBy: "variable",
+    productIds: [],
   },
   {
     name: "Targeted treatment",
     description: "Focus on active areas",
     price: 126000,
     category: "Treatment",
+    priceBy: "variable",
+    productIds: [],
   },
   {
     name: "Protection + repairs",
     description: "Long-term property care",
     price: 218500,
     category: "Protection",
+    priceBy: "variable",
+    productIds: [],
   },
 ]
 

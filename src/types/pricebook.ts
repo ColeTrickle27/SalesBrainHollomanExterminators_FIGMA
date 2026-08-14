@@ -5,6 +5,8 @@ export interface PricebookService {
   description: string
   price: number
   category: string
+  priceBy: "per_lf" | "per_sf" | "per_acre" | "per_bedroom" | "variable"
+  productIds: string[]
   active: boolean
   createdAt: string
   updatedAt: string
@@ -15,4 +17,6 @@ export interface PricebookServiceInput {
   description: string
   price: number
   category: string
+  priceBy: PricebookService["priceBy"]
+  productIds: string[]
 }

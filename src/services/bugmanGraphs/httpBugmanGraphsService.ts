@@ -11,9 +11,9 @@
  *     resp:  { graph: { document, blobs }, name }
  *   error:   { error: string }  (400/403/404/413/500)
  *
- * Not wired up or exercised yet -- kept here, disconnected, as the concrete
- * target once Sales Brain is served from an origin in BUGMAN_GRAPH_ORIGINS
- * (or Ops Brain's allowlist is extended to include it).
+ * Mounted SalesBrain uses this implementation in production. The standalone
+ * editor origin is CSP-allowlisted and the verified save bridge returns the
+ * canonical R2 key to the mounted Ops Brain origin.
  */
 
 import type { InspectionMarker } from "../../types/findings";
@@ -25,6 +25,8 @@ import type { BugManGraphDocument, BugManGraphEnvelope } from "./types";
 export interface OpsBrainGraphsClientConfig {
   /** Ops Brain origin, e.g. "https://ops.holloman-ext.com". */
   baseUrl: string;
+  /** Standalone Flutter editor origin. */
+  editorUrl: string;
 }
 
 export class HttpBugManGraphsService implements BugManGraphsService {
@@ -44,7 +46,8 @@ export class HttpBugManGraphsService implements BugManGraphsService {
     const params = new URLSearchParams({ billTo: billToNumber, location: locationNumber });
     // BugManInspects reads the existing R2 key from `graph`, not `key`.
     if (graphKey) params.set("graph", graphKey);
-    return { url: `${this.config.baseUrl}/bugman-graphs/?${params.toString()}`, graphKey };
+    if (typeof window !== "undefined") params.set("returnOrigin", window.location.origin);
+    return { url: `${this.config.editorUrl.replace(/\/$/, "")}/?${params.toString()}`, graphKey };
   }
 
   async saveGraph(graphKey: string | undefined, document: BugManGraphDocument, blobs: Record<string, string>) {

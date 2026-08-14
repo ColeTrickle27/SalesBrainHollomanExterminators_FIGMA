@@ -5,6 +5,7 @@ export type {
   SalesBrainEstimateListItem,
 } from "./salesBrainEstimatesService"
 export type { SalesBrainPricebookService } from "./salesBrainPricebookService"
+export type { SalesBrainOperationsService } from "./salesBrainOperationsService"
 export { OpsBrainAuthError } from "./errors"
 export { HttpCustomerFilesService } from "./httpCustomerFilesService"
 export { MockCustomerFilesService } from "./mockCustomerFilesService"
@@ -14,6 +15,8 @@ export { HttpSalesBrainEstimatesService } from "./httpSalesBrainEstimatesService
 export { MockSalesBrainEstimatesService } from "./mockSalesBrainEstimatesService"
 export { HttpSalesBrainPricebookService } from "./httpSalesBrainPricebookService"
 export { MockSalesBrainPricebookService } from "./mockSalesBrainPricebookService"
+export { HttpSalesBrainOperationsService } from "./httpSalesBrainOperationsService"
+export { MockSalesBrainOperationsService } from "./mockSalesBrainOperationsService"
 export * from "./types"
 
 import { HttpCustomerFilesService } from "./httpCustomerFilesService"
@@ -28,6 +31,9 @@ import type { CustomerFilesService } from "./customerFilesService"
 import type { CurrentUserService } from "./currentUserService"
 import type { SalesBrainEstimatesService } from "./salesBrainEstimatesService"
 import type { SalesBrainPricebookService } from "./salesBrainPricebookService"
+import { HttpSalesBrainOperationsService } from "./httpSalesBrainOperationsService"
+import { MockSalesBrainOperationsService } from "./mockSalesBrainOperationsService"
+import type { SalesBrainOperationsService } from "./salesBrainOperationsService"
 
 /**
  * Active Customer Files service instance.
@@ -120,4 +126,10 @@ export function createSalesBrainPricebookService(): SalesBrainPricebookService {
       baseUrl: import.meta.env.VITE_OPS_BRAIN_BASE_URL ?? "",
     })
   return new MockSalesBrainPricebookService()
+}
+
+export function createSalesBrainOperationsService(): SalesBrainOperationsService {
+  const mode = import.meta.env.VITE_SALES_BRAIN_OPERATIONS_MODE ?? (import.meta.env.PROD ? "http" : "mock")
+  if (mode === "http") return new HttpSalesBrainOperationsService({ baseUrl: import.meta.env.VITE_OPS_BRAIN_BASE_URL ?? "" })
+  return new MockSalesBrainOperationsService()
 }
