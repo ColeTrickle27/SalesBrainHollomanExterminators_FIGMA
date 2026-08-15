@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { AlertTriangle, CheckCircle, ChevronRight, FileText, Percent, RefreshCw, Search, TrendingUp } from 'lucide-react'
+import { AlertTriangle, CheckCircle, ChevronRight, FileText, Percent, RefreshCw, Search, Trash2, TrendingUp } from 'lucide-react'
 
 import type { SalesBrainEstimateListItem } from '../services/opsBrain'
 
@@ -8,6 +8,7 @@ interface Props {
   loading: boolean
   error: string | null
   onOpen: (id: string) => void
+  onDelete: (id: string) => Promise<void>
   onRefresh: () => void
   metrics?: {
     acceptedCount: number
@@ -24,7 +25,7 @@ const statusStyle: Record<string, string> = {
   declined: 'bg-danger-light text-danger',
 }
 
-export default function QuoteHistory({ estimates, loading, error, onOpen, onRefresh, metrics }: Props) {
+export default function QuoteHistory({ estimates, loading, error, onOpen, onDelete, onRefresh, metrics }: Props) {
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState('all')
   const filtered = useMemo(() => {
@@ -65,7 +66,8 @@ export default function QuoteHistory({ estimates, loading, error, onOpen, onRefr
 
       <div className="grid lg:grid-cols-2 gap-3">
         {filtered.map((estimate) => (
-          <button key={estimate.id} onClick={() => onOpen(estimate.id)} className="bg-white rounded-2xl p-4 shadow-sm flex items-start gap-3 text-left hover:shadow-md transition-all">
+          <article key={estimate.id} className="bg-white rounded-2xl p-4 shadow-sm flex items-start gap-3 hover:shadow-md transition-all">
+            <button onClick={() => onOpen(estimate.id)} className="flex flex-1 min-w-0 items-start gap-3 text-left">
             <div className="w-10 h-10 bg-surface rounded-xl flex items-center justify-center"><FileText size={18} className="text-steel" /></div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2"><span className="font-semibold text-brand-dark truncate">{estimate.customerName || 'Customer not selected'}</span><span className={`text-xs font-bold px-2 py-0.5 rounded-full capitalize ${statusStyle[estimate.status]}`}>{estimate.status}</span></div>
@@ -73,7 +75,9 @@ export default function QuoteHistory({ estimates, loading, error, onOpen, onRefr
               <div className="flex items-center justify-between gap-2 mt-2 text-xs"><span className="font-mono text-silver">{estimate.estimateNumber}</span><span className="text-silver">Updated {new Date(estimate.updatedAt).toLocaleDateString()}</span>{estimate.totalCents !== null ? <span className="font-mono font-bold text-brand-dark">${(estimate.totalCents / 100).toLocaleString()}</span> : null}</div>
             </div>
             <ChevronRight size={17} className="text-silver mt-2" />
-          </button>
+            </button>
+            {estimate.status === 'draft' || estimate.status === 'sent' ? <button onClick={() => { if (window.confirm(`Delete open quote ${estimate.estimateNumber}? This removes it from SalesBrain.`)) void onDelete(estimate.id).catch(() => undefined) }} className="p-2 text-danger hover:bg-danger-light rounded-xl" aria-label={`Delete quote ${estimate.estimateNumber}`} title="Delete open quote"><Trash2 size={17} /></button> : null}
+          </article>
         ))}
       </div>
     </div>

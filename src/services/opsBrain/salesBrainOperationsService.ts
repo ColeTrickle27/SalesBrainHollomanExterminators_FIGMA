@@ -38,5 +38,6 @@ export interface SalesBrainOperationsService {
   getMyEmployeeProfile(): Promise<SalesEmployeeProfile | null>
   listEmployeeProfiles(): Promise<SalesEmployeeProfile[]>
   updateEmployeeProfile(username: string, input: Omit<SalesEmployeeProfile, "username" | "updatedAt" | "updatedBy">): Promise<SalesEmployeeProfile>
+  deleteEmployeeProfile(username: string): Promise<void>
   migrateLegacyData(): Promise<SalesBrainMigrationResult>
 }

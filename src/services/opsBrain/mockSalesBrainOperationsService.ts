@@ -45,6 +45,7 @@ export class MockSalesBrainOperationsService implements SalesBrainOperationsServ
   async getMyEmployeeProfile() { return structuredClone(this.employees[0] || null) }
   async listEmployeeProfiles() { return structuredClone(this.employees) }
   async updateEmployeeProfile(username: string, input: Omit<SalesEmployeeProfile, "username" | "updatedAt" | "updatedBy">) { const current = this.employees.find((item) => item.username === username); const saved = { ...input, username, updatedAt: new Date().toISOString(), updatedBy: "preview" }; if (current) Object.assign(current, saved); else this.employees.push(saved); return structuredClone(saved) }
+  async deleteEmployeeProfile(username: string) { const index = this.employees.findIndex((item) => item.username === username); if (index < 0) throw new Error("Employee Gmail profile not found."); this.employees.splice(index, 1) }
   async migrateLegacyData(): Promise<SalesBrainMigrationResult> { return { estimates: { imported: 0, skipped: 0, d1Count: 0 }, pricebookServices: { imported: 0, skipped: 0, d1Count: 0 }, sourceObjectsDeleted: 0 } }
 }
 

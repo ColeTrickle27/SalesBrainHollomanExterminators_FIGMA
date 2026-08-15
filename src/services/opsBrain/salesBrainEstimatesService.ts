@@ -40,6 +40,8 @@ export interface SalesBrainEstimatesService {
   listEstimates(): Promise<SalesBrainEstimateListItem[]>
   /** Fetch the full saved inspection by id. Missing records return null. */
   getEstimate(id: string): Promise<SalesInspection | null>
+  /** Remove an open draft or sent quote from active SalesBrain views. */
+  deleteEstimate(id: string): Promise<void>
   updateStatus(id: string, status: SalesInspectionStatus): Promise<SalesInspection>
   createProposalPdf(id: string): Promise<{ key: string; name: string; url: string }>
   createDocument(id: string, type: SalesDocumentType): Promise<{ document: SalesGeneratedDocument; key: string; name: string; url: string }>

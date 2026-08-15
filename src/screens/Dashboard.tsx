@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react"
-import { AlertTriangle, CalendarClock, CheckCircle, ChevronRight, FileText, Flame, MapPin, MessageSquarePlus, Plus, RefreshCw, Search, Snowflake, Sun, X } from "lucide-react"
+import { AlertTriangle, CalendarClock, CheckCircle, ChevronRight, FileText, Flame, MapPin, MessageSquarePlus, Plus, RefreshCw, Search, Snowflake, Sun, Trash2, X } from "lucide-react"
 
 import type { SalesBrainEstimateListItem } from "../services/opsBrain"
 import { LEAD_TYPE_OPTIONS, PREFERRED_CONTACT_OPTIONS, REFERRAL_SOURCE_OPTIONS } from "../types/figma-workflow"
@@ -16,6 +16,7 @@ interface DashboardProps {
   leadActivities: Record<string, LeadActivity[]>
   onStartInspection: () => void
   onOpenEstimate: (id: string) => void
+  onDeleteEstimate: (id: string) => Promise<void>
   onRefresh: () => void
   onCreateLead: (input: LeadInput) => Promise<SalesLead>
   onUpdateLead: (id: string, input: Partial<LeadInput>) => Promise<SalesLead>
@@ -95,8 +96,8 @@ export default function Dashboard(props: DashboardProps) {
           <div className="grid lg:grid-cols-2 gap-3">{filteredLeads.map((lead) => <LeadCard key={lead.id} lead={lead} onOpen={() => void openLead(lead)} />)}</div>
         </section>
 
-        <QuoteSection title="Open Drafts" items={drafts} empty="No quote drafts are open." onOpen={onOpenEstimate} />
-        <QuoteSection title="Pending Quotes" items={pending} empty="No sent quotes are awaiting a decision." onOpen={onOpenEstimate} />
+        <QuoteSection title="Open Drafts" items={drafts} empty="No quote drafts are open." onOpen={onOpenEstimate} onDelete={props.onDeleteEstimate} />
+        <QuoteSection title="Pending Quotes" items={pending} empty="No sent quotes are awaiting a decision." onOpen={onOpenEstimate} onDelete={props.onDeleteEstimate} />
 
         <div className="flex flex-wrap items-center justify-between gap-2 bg-success-light border border-success/20 rounded-2xl px-4 py-3">
           <div className="flex items-center gap-2"><CheckCircle size={16} className="text-success" /><span className="text-sm text-success font-semibold">Connected to Ops Brain storage</span></div>
@@ -124,8 +125,8 @@ function LeadCard({ lead, onOpen }: { lead: SalesLead; onOpen: () => void }) {
   return <button onClick={onOpen} className="bg-white rounded-2xl p-4 shadow-sm text-left flex items-start gap-3"><div className={`w-10 h-10 rounded-xl flex items-center justify-center ${style.className}`}><Icon size={18} /></div><div className="flex-1 min-w-0"><div className="flex items-center justify-between gap-2"><span className="font-semibold text-brand-dark truncate">{lead.customerName}</span><div className="flex gap-1"><span className={`text-[10px] uppercase font-bold px-2 py-1 rounded-full ${leadStatusStyle[lead.status]}`}>{lead.status}</span><span className={`text-[10px] uppercase font-bold px-2 py-1 rounded-full ${style.className}`}>{lead.temperature}</span></div></div><div className="text-xs text-steel mt-1 truncate">{lead.companyName || lead.phone || lead.email || "Contact information needed"}</div><div className="flex items-center gap-1 mt-2 text-xs text-silver"><CalendarClock size={12} />{lead.nextFollowUpAt ? `Follow up ${new Date(lead.nextFollowUpAt).toLocaleDateString()}` : `Last touch ${new Date(lead.lastInteractionAt || lead.updatedAt).toLocaleDateString()}`}</div></div><ChevronRight size={17} className="text-silver mt-2" /></button>
 }
 
-function QuoteSection({ title, items, empty, onOpen }: { title: string; items: SalesBrainEstimateListItem[]; empty: string; onOpen: (id: string) => void }) {
-  return <section><div className="flex items-center gap-2 mb-3"><h2 className="font-display text-xl font-bold text-brand-dark uppercase">{title}</h2><span className="bg-brand-dark text-white text-xs font-bold px-2 py-0.5 rounded-full">{items.length}</span></div>{items.length === 0 ? <Empty title={empty} detail="Saved quotes will appear here automatically." /> : <div className="grid lg:grid-cols-2 gap-3">{items.map((item) => <button key={item.id} onClick={() => onOpen(item.id)} className="bg-white rounded-2xl p-4 shadow-sm text-left flex items-start gap-3"><div className="w-10 h-10 bg-surface rounded-xl flex items-center justify-center"><FileText size={18} className="text-steel" /></div><div className="flex-1 min-w-0"><div className="font-semibold text-brand-dark truncate">{item.customerName || "Customer not selected"}</div><div className="flex items-center gap-1 mt-1 text-xs text-steel"><MapPin size={12} />{item.locationAddress || item.locationName || "No location"}</div><div className="mt-2 flex justify-between text-xs"><span className="font-mono text-silver">{item.estimateNumber}</span>{item.totalCents !== null ? <span className="font-mono font-bold">${(item.totalCents / 100).toLocaleString()}</span> : null}</div></div><ChevronRight size={17} className="text-silver mt-2" /></button>)}</div>}</section>
+function QuoteSection({ title, items, empty, onOpen, onDelete }: { title: string; items: SalesBrainEstimateListItem[]; empty: string; onOpen: (id: string) => void; onDelete: (id: string) => Promise<void> }) {
+  return <section><div className="flex items-center gap-2 mb-3"><h2 className="font-display text-xl font-bold text-brand-dark uppercase">{title}</h2><span className="bg-brand-dark text-white text-xs font-bold px-2 py-0.5 rounded-full">{items.length}</span></div>{items.length === 0 ? <Empty title={empty} detail="Saved quotes will appear here automatically." /> : <div className="grid lg:grid-cols-2 gap-3">{items.map((item) => <article key={item.id} className="bg-white rounded-2xl p-4 shadow-sm flex items-start gap-3"><button onClick={() => onOpen(item.id)} className="flex flex-1 min-w-0 items-start gap-3 text-left"><div className="w-10 h-10 shrink-0 bg-surface rounded-xl flex items-center justify-center"><FileText size={18} className="text-steel" /></div><div className="flex-1 min-w-0"><div className="font-semibold text-brand-dark truncate">{item.customerName || "Customer not selected"}</div><div className="flex items-center gap-1 mt-1 text-xs text-steel"><MapPin size={12} />{item.locationAddress || item.locationName || "No location"}</div><div className="mt-2 flex justify-between text-xs"><span className="font-mono text-silver">{item.estimateNumber}</span>{item.totalCents !== null ? <span className="font-mono font-bold">${(item.totalCents / 100).toLocaleString()}</span> : null}</div></div><ChevronRight size={17} className="text-silver mt-2" /></button><button onClick={() => { if (window.confirm(`Delete open quote ${item.estimateNumber}? This removes it from SalesBrain.`)) void onDelete(item.id).catch(() => undefined) }} className="p-2 text-danger hover:bg-danger-light rounded-xl" aria-label={`Delete quote ${item.estimateNumber}`} title="Delete open quote"><Trash2 size={17} /></button></article>)}</div>}</section>
 }
 
 const EMPTY_LEAD: LeadInput = {

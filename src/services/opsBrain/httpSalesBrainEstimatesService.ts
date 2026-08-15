@@ -84,6 +84,13 @@ export class HttpSalesBrainEstimatesService
     }
   }
 
+  async deleteEstimate(id: string): Promise<void> {
+    await this.request<{ ok: true }>(
+      `/sales-brain/estimates/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+    )
+  }
+
   async updateStatus(id: string, status: SalesInspection["status"]): Promise<SalesInspection> {
     const data = await this.request<EstimateResponse>(
       `/sales-brain/estimates/${encodeURIComponent(id)}/status`,

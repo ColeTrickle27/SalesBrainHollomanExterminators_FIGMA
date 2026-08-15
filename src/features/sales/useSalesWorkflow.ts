@@ -563,6 +563,27 @@ export function useSalesWorkflow() {
     }
   }
 
+  const deleteEstimate = async (id: string) => {
+    setEstimatesError(null)
+    try {
+      await estimatesServiceRef.current!.deleteEstimate(id)
+      setEstimates((current) => current.filter((item) => item.id !== id))
+      setPersistedInspections((current) => current.filter((item) => item.id !== id))
+      setDashboardData((current) => current ? {
+        ...current,
+        drafts: current.drafts.filter((item) => item.id !== id),
+        pending: current.pending.filter((item) => item.id !== id),
+      } : current)
+      if (inspection.id === id) {
+        setInspection(createEmptySalesInspection(currentUser?.username ?? "unassigned"))
+        clearLastOpenEstimateId()
+      }
+    } catch (error) {
+      setEstimatesError(error instanceof Error ? error.message : "Could not delete that open quote.")
+      throw error
+    }
+  }
+
   /**
    * Management views need only one existing API capability beyond summaries:
    * fetch the full persisted estimate record. This deliberately composes the
@@ -1109,6 +1130,12 @@ export function useSalesWorkflow() {
     return item
   }
 
+  const deleteEmployeeProfile = async (username: string) => {
+    await operationsServiceRef.current!.deleteEmployeeProfile(username)
+    setEmployeeProfiles((current) => current.filter((entry) => entry.username !== username))
+    if (username === currentUser?.username) setEmployeeProfile(null)
+  }
+
   const migrateLegacyData = async () => {
     const result = await operationsServiceRef.current!.migrateLegacyData()
     await Promise.all([loadEstimates(), refreshOperations(), refreshPricebook()])
@@ -1508,6 +1535,7 @@ export function useSalesWorkflow() {
     openingEstimateId,
     showOpenEstimatePicker,
     loadEstimates,
+    deleteEstimate,
     openEstimate,
     persistedInspections,
     persistedInspectionsLoading,
@@ -1556,6 +1584,7 @@ export function useSalesWorkflow() {
     deactivateServicePackage,
     loadEmployeeProfiles,
     updateEmployeeProfile,
+    deleteEmployeeProfile,
     migrateLegacyData,
     loadProviderState,
     createCustomerDocument,

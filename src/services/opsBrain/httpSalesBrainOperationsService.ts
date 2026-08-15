@@ -57,5 +57,6 @@ export class HttpSalesBrainOperationsService implements SalesBrainOperationsServ
   async getMyEmployeeProfile() { return (await this.request<{ employee: SalesEmployeeProfile | null }>("/sales-brain/employees/me")).employee }
   async listEmployeeProfiles() { return (await this.request<{ employees: SalesEmployeeProfile[] }>("/sales-brain/employees")).employees }
   async updateEmployeeProfile(username: string, input: Omit<SalesEmployeeProfile, "username" | "updatedAt" | "updatedBy">) { return (await this.request<{ employee: SalesEmployeeProfile }>(`/sales-brain/employees/${encodeURIComponent(username)}`, { method: "PATCH", body: JSON.stringify(input) })).employee }
+  async deleteEmployeeProfile(username: string) { await this.request<{ ok: true }>(`/sales-brain/employees/${encodeURIComponent(username)}`, { method: "DELETE" }) }
   async migrateLegacyData() { return (await this.request<{ migration: SalesBrainMigrationResult }>("/sales-brain/migrate", { method: "POST", body: "{}" })).migration }
 }

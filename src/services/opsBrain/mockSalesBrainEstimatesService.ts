@@ -63,6 +63,17 @@ export class MockSalesBrainEstimatesService
     return estimate ? clone(estimate) : null
   }
 
+  async deleteEstimate(id: string): Promise<void> {
+    const estimate = this.estimates.get(id)
+    if (!estimate) throw new Error("Estimate not found.")
+    if (estimate.status !== "draft" && estimate.status !== "sent") throw new Error("Only open draft or sent quotes can be deleted.")
+    this.estimates.delete(id)
+    this.documents.delete(id)
+    this.deliveries.delete(id)
+    this.signatures.delete(id)
+    this.handoffs.delete(id)
+  }
+
   async updateStatus(id: string, status: SalesInspection["status"]): Promise<SalesInspection> {
     const estimate = this.estimates.get(id)
     if (!estimate) throw new Error("Estimate not found.")
