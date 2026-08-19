@@ -138,11 +138,11 @@ export interface SalesBrainAcceptanceDetails {
 }
 
 /**
- * Version 3 is the eleven-stage SalesBrain workflow. `structure` remains optional
+ * Version 4 is the nine-stage SalesBrain workflow. `structure` remains optional
  * solely so saved version-1 records can be normalized without data loss.
  */
 export interface SalesBrainWorkflowData {
-  version: 1 | 2 | 3
+  version: 1 | 2 | 3 | 4
   currentStep: number
   completedSteps: number[]
   customer: SalesBrainCustomerDetails
@@ -180,7 +180,7 @@ export function createEmptyStructure(name = "Main Structure"): SalesBrainStructu
 export function createEmptySalesBrainWorkflowData(): SalesBrainWorkflowData {
   const structure = createEmptyStructure()
   return {
-    version: 3,
+    version: 4,
     currentStep: 1,
     completedSteps: [],
     customer: {
@@ -230,7 +230,13 @@ export function createEmptySalesBrainWorkflowData(): SalesBrainWorkflowData {
   }
 }
 
-/** Converts legacy version-1 and version-2 records into the eleven-stage shape. */
+function remapVersionThreeStep(step: number) {
+  if (step <= 3) return Math.max(1, step)
+  if (step <= 6) return 4
+  return Math.min(9, step - 2)
+}
+
+/** Converts legacy records into the current nine-stage shape without losing quote data. */
 export function normalizeSalesBrainWorkflowData(input?: Partial<SalesBrainWorkflowData> | null): SalesBrainWorkflowData {
   const empty = createEmptySalesBrainWorkflowData()
   if (!input) return empty
@@ -252,10 +258,20 @@ export function normalizeSalesBrainWorkflowData(input?: Partial<SalesBrainWorkfl
   const chocolate = suppliedOptions.find((option) => option.kind === "chocolate") || empty.quoteOptions[0]
   const vanilla = suppliedOptions.find((option) => option.kind === "vanilla") || empty.quoteOptions[1]
   const customerSpecified = suppliedOptions.filter((option) => option.kind === "customer-specified")
+  const currentStep = input.version === 3
+    ? remapVersionThreeStep(input.currentStep || 1)
+    : Math.min(9, Math.max(1, input.currentStep || 1))
+  const completedSteps = Array.from(new Set(
+    (Array.isArray(input.completedSteps) ? input.completedSteps : [])
+      .filter((step) => input.version !== 3 || (step !== 4 && step !== 5))
+      .map((step) => input.version === 3 ? remapVersionThreeStep(step) : Math.min(9, Math.max(1, step))),
+  )).sort((a, b) => a - b)
   return {
     ...empty,
     ...input,
-    version: 3,
+    version: 4,
+    currentStep,
+    completedSteps,
     customer: {
       ...empty.customer,
       ...(input.customer || {}),

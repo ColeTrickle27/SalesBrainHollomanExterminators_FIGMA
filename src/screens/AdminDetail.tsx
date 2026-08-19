@@ -1,6 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react"
 import { AlertTriangle, BriefcaseBusiness, Calculator, DatabaseBackup, Edit3, Mail, Package, Plus, RefreshCw, Settings, Trash2, Users, X } from "lucide-react"
 
+import { CurrencyInput } from "../components/forms/CurrencyInput"
+
 import type { PricebookService, PricebookServiceInput } from "../types/pricebook"
 import type {
   SalesCostingSettings,
@@ -157,6 +159,6 @@ function SelectField({ label, value, options, onChange }: { label: string; value
 function CheckboxList({ title, rows, selected, onChange }: { title: string; rows: Array<[string, string]>; selected: string[]; onChange: (ids: string[]) => void }) { return <fieldset><legend className="text-xs font-semibold text-steel">{title}</legend><div className="mt-2 max-h-40 overflow-auto space-y-2 rounded-xl border border-surface p-3">{rows.length ? rows.map(([id, label]) => <label key={id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={selected.includes(id)} onChange={(event) => onChange(event.target.checked ? [...selected, id] : selected.filter((item) => item !== id))} />{label}</label>) : <p className="text-xs text-steel">Create the reference items first.</p>}</div></fieldset> }
 function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) { return <label className="flex items-center justify-between gap-3 text-sm text-steel border border-surface rounded-xl px-3 py-2.5">{label}<input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} /></label> }
 function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) { return <label className="grid grid-cols-[1fr_150px] gap-3 items-center text-sm text-steel">{label}<input type="number" value={value} onChange={(event) => onChange(Number(event.target.value))} className="border border-surface rounded-xl px-3 py-2 text-right text-brand-dark" /></label> }
-function MoneyField({ label, cents, onChange }: { label: string; cents: number; onChange: (value: number) => void }) { return <label className="grid grid-cols-[1fr_150px] gap-3 items-center text-sm text-steel">{label}<input type="number" step="0.01" value={(cents / 100).toFixed(2)} onChange={(event) => onChange(Math.round(Number(event.target.value) * 100))} className="border border-surface rounded-xl px-3 py-2 text-right text-brand-dark" /></label> }
+function MoneyField({ label, cents, onChange }: { label: string; cents: number; onChange: (value: number) => void }) { return <label className="grid grid-cols-[1fr_150px] gap-3 items-center text-sm text-steel">{label}<CurrencyInput ariaLabel={label} cents={cents} onChange={onChange} className="border border-surface rounded-xl px-3 py-2 text-right text-brand-dark min-w-0" /></label> }
 function EmptyAdmin({ title, detail }: { title: string; detail: string }) { return <div className="bg-white rounded-2xl p-6 text-center"><div className="font-semibold text-brand-dark">{title}</div><p className="text-sm text-steel mt-1">{detail}</p></div> }
 function priceByLabel(value: PricebookService["priceBy"]) { return value === "per_lf" ? "Per LF" : value === "per_sf" ? "Per SF" : value === "per_acre" ? "Per Acre" : value === "per_bedroom" ? "Per Bedroom" : "Variable" }

@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react"
-import { CheckCircle, ChevronLeft, ClipboardList, Droplets, Images, ShieldCheck } from "lucide-react"
+import { CheckCircle, ChevronLeft, ClipboardList, Droplets, Home, Images, ShieldCheck } from "lucide-react"
 
+import { BugManGraphPresentation } from "../components/property/BugManGraphPresentation"
 import type { PricebookService } from "../types/pricebook"
 import type { SalesBrainQuoteOption, SalesBrainWorkflowData } from "../types/figma-workflow"
 import type { SalesInspection } from "../types/sales-inspection"
@@ -14,7 +15,7 @@ interface Props {
   onContinue: () => void
 }
 
-type Section = "overview" | "findings" | "photos" | "options"
+type Section = "overview" | "findings" | "photos" | "graph" | "options"
 
 export default function CustomerPresentation({ inspection, workflowData, services, onChange, onClose, onContinue }: Props) {
   const [section, setSection] = useState<Section>("findings")
@@ -24,7 +25,8 @@ export default function CustomerPresentation({ inspection, workflowData, service
   const photos = inspection.photos.filter((photo) => photo.customerVisible !== false && photo.uploadStatus !== "error")
   const customerName = [workflowData.customer.company, workflowData.customer.first, workflowData.customer.last].filter(Boolean).join(" ") || inspection.billTo?.billToName || "Customer"
   const address = [workflowData.customer.locationName, workflowData.customer.streetAddress, workflowData.customer.city, "NC", workflowData.customer.zip].filter(Boolean).join(", ")
-  const tabs: Array<{ id: Section; label: string }> = [{ id: "findings", label: "Findings" }, { id: "photos", label: "Photos" }, { id: "overview", label: "Property" }, { id: "options", label: "Options" }]
+  const tabs: Array<{ id: Section; label: string }> = [{ id: "findings", label: "Findings" }, { id: "photos", label: "Photos" }, { id: "overview", label: "Property" }, { id: "graph", label: "Structure Graph" }, { id: "options", label: "Options" }]
+  const visibleMarkerIds = Array.from(new Set(visibleFindings.filter((finding) => finding.source === "graph" && (!finding.sourceGraphKey || finding.sourceGraphKey === inspection.property?.graphKey)).flatMap((finding) => finding.markerIds)))
   const customerSpecified = workflowData.quoteOptions.find((item) => item.kind === "customer-specified")
   const choose = (id: string) => onChange({ ...workflowData, selectedQuoteOptionId: id })
   const chooseCustomerSpecified = () => {
@@ -53,9 +55,11 @@ export default function CustomerPresentation({ inspection, workflowData, service
 
       {section === "overview" ? <div className="space-y-4"><CustomerCard icon={<ClipboardList size={20} />} title="Property Overview"><div className="grid sm:grid-cols-2 gap-3">{workflowData.structures.map((structure) => <div key={structure.id} className="bg-gray-50 rounded-2xl p-4"><div className="font-bold">{structure.name}</div><div className="text-sm text-gray-600 mt-1">{structure.structureOther || structure.structureType || "Structure type not recorded"}</div><div className="text-xs text-gray-500 mt-2">{[structure.construction, structure.occupancy, structure.squareFootage ? `${structure.squareFootage} sq ft` : ""].filter(Boolean).join(" · ")}</div></div>)}</div></CustomerCard>{workflowData.moisture.readings.length ? <CustomerCard icon={<Droplets size={20} />} title="Recorded Moisture Readings"><div className="grid sm:grid-cols-2 gap-3">{workflowData.moisture.readings.map((reading) => <div key={reading.id} className="bg-gray-50 rounded-xl p-3"><div className="font-mono text-xl font-bold">{reading.value}{reading.unit}</div><div className="text-sm font-semibold">{reading.location}</div><div className="text-xs text-gray-500">{reading.material} · {reading.category}</div></div>)}</div></CustomerCard> : null}</div> : null}
 
+      {section === "graph" ? <CustomerCard icon={<Home size={20} />} title="Structure Graph"><BugManGraphPresentation graphKey={inspection.property?.graphKey} billToNumber={inspection.billTo?.billToNumber} locationNumber={inspection.location?.locationNumber} visibleMarkerIds={visibleMarkerIds} /></CustomerCard> : null}
+
       {section === "options" ? <CustomerCard icon={<ShieldCheck size={20} />} title="Service Options"><div className="grid lg:grid-cols-3 gap-3">{workflowData.quoteOptions.filter((option) => option.kind === "chocolate" || option.kind === "vanilla").map((option) => <OptionCard key={option.id} option={option} selected={workflowData.selectedQuoteOptionId === option.id} onClick={() => choose(option.id)} />)}<button onClick={chooseCustomerSpecified} className={`rounded-2xl p-5 border-2 text-left ${customerSpecified && workflowData.selectedQuoteOptionId === customerSpecified.id ? "border-brand-red bg-red-50/30" : "border-gray-100"}`}><div className="text-xs text-brand-red font-bold uppercase">Customer Choice</div><h3 className="font-display text-xl font-bold uppercase mt-1">Other — Customer Specified</h3><p className="text-sm text-gray-600 mt-2">Select a custom combination of services.</p></button></div>{customerSpecified && workflowData.selectedQuoteOptionId === customerSpecified.id ? <div className="mt-4 border-t border-gray-100 pt-4"><div className="text-sm font-bold mb-2">Select Services</div><div className="flex flex-wrap gap-2">{services.filter((item) => item.active).map((service) => <button key={service.id} onClick={() => toggleCustom(service)} className={`px-3 py-2 rounded-xl border text-xs font-bold ${customerSpecified.serviceIds.includes(service.id) ? "bg-gray-900 text-white border-gray-900" : "border-gray-200"}`}>{customerSpecified.serviceIds.includes(service.id) ? "✓ " : "+ "}{service.name}</button>)}</div></div> : null}</CustomerCard> : null}
     </main>
-    <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 p-4"><div className="max-w-5xl mx-auto flex items-center gap-3"><div className="flex-1"><div className="text-xs text-gray-400">Customer-selected option</div><div className="font-bold truncate">{selected?.name || "Not selected"}</div></div><button onClick={onContinue} disabled={!selected || selected.serviceIds.length === 0} className="bg-brand-red text-white font-display text-lg font-bold uppercase px-6 py-3 rounded-2xl disabled:opacity-40">Continue to Service Quote</button></div></div>
+    <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 p-4"><div className="max-w-5xl mx-auto flex items-center gap-3"><div className="flex-1"><div className="text-xs text-gray-400">Customer-selected option</div><div className="font-bold truncate">{selected?.name || "Not selected"}</div></div><button onClick={onContinue} disabled={!selected || selected.serviceIds.length === 0} className="bg-brand-red text-white font-display text-lg font-bold uppercase px-6 py-3 rounded-2xl disabled:opacity-40">Continue to Send to Customer</button></div></div>
   </div>
 }
 

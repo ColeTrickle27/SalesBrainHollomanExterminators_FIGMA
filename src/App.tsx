@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronLeft, FileText, History, Home, Plus, Settings, Trash2, Wifi, WifiOff } from 'lucide-react'
+import { Calculator, ChevronLeft, FileText, History, Home, Plus, Settings, Trash2, Wifi, WifiOff } from 'lucide-react'
 
 import { BugManGraphChoiceModal } from './components/property/BugManGraphChoiceModal'
 import { BugManGraphPickerModal } from './components/property/BugManGraphPickerModal'
@@ -11,17 +11,19 @@ import CustomerPresentation from './screens/CustomerPresentation'
 import CustomerSearch from './screens/CustomerSearch'
 import Dashboard from './screens/Dashboard'
 import InspectionWizard from './screens/InspectionWizard'
+import JobCosting from './screens/JobCosting'
 import ProposalPreview from './screens/ProposalPreview'
 import QuoteHistory from './screens/QuoteHistory'
 import type { CustomerSearchResult } from './types/customer'
 import { normalizeSalesBrainWorkflowData } from './types/figma-workflow'
 
-type Screen = 'dashboard' | 'customer-search' | 'wizard' | 'presentation' | 'proposal' | 'quote-history' | 'admin-detail'
+type Screen = 'dashboard' | 'customer-search' | 'wizard' | 'job-costing' | 'presentation' | 'proposal' | 'quote-history' | 'admin-detail'
 
 const SCREEN_HASH: Record<Screen, string> = {
   dashboard: 'home',
   'customer-search': 'customer-search',
   wizard: 'active-quote',
+  'job-costing': 'job-costing',
   presentation: 'customer-view',
   proposal: 'proposal',
   'quote-history': 'quotes',
@@ -33,6 +35,7 @@ const HASH_SCREEN = Object.fromEntries(Object.entries(SCREEN_HASH).map(([screen,
 const NAV_ITEMS = [
   { id: 'dashboard', icon: Home, label: 'Home' },
   { id: 'wizard', icon: FileText, label: 'Active Quote' },
+  { id: 'job-costing', icon: Calculator, label: 'Job Costing' },
   { id: 'quote-history', icon: History, label: 'Quotes' },
   { id: 'admin-detail', icon: Settings, label: 'Admin' },
 ] as const
@@ -53,7 +56,7 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (screen === 'dashboard' || screen === 'quote-history' || screen === 'wizard') void workflow.loadEstimates()
+    if (screen === 'dashboard' || screen === 'quote-history' || screen === 'wizard' || screen === 'job-costing') void workflow.loadEstimates()
   }, [screen])
 
   const go = (next: Screen) => {
@@ -87,7 +90,7 @@ export default function App() {
   }, [workflow.currentUser?.name])
 
   if (screen === 'customer-search') return <CustomerSearch onSelectCustomer={selectCustomer} onClose={() => go('dashboard')} />
-  if (screen === 'presentation') return <CustomerPresentation inspection={workflow.inspection} workflowData={workflowData} services={workflow.pricebookServices} onChange={workflow.updateWorkflowData} onClose={() => go('wizard')} onContinue={() => { workflow.updateWorkflowData({ ...workflowData, currentStep: 9 }); void workflow.saveEstimate(); go('wizard') }} />
+  if (screen === 'presentation') return <CustomerPresentation inspection={workflow.inspection} workflowData={workflowData} services={workflow.pricebookServices} onChange={workflow.updateWorkflowData} onClose={() => go('wizard')} onContinue={() => { workflow.updateWorkflowData({ ...workflowData, currentStep: 7 }); void workflow.saveEstimate(); go('wizard') }} />
   if (screen === 'proposal') return <ProposalPreview inspection={workflow.inspection} workflowData={workflowData} onClose={() => go('wizard')} onGeneratePdf={workflow.createProposalPdf} />
 
   return (
@@ -105,7 +108,7 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2">
-            {screen === 'wizard' ? <div className="hidden sm:block text-xs font-mono text-silver bg-white/8 px-2.5 py-1.5 rounded-xl">{workflow.inspection.estimateNumber}</div> : null}
+            {screen === 'wizard' || screen === 'job-costing' ? <div className="hidden sm:block text-xs font-mono text-silver bg-white/8 px-2.5 py-1.5 rounded-xl">{workflow.inspection.estimateNumber}</div> : null}
             <button onClick={() => setIsOffline((value) => !value)} className={`flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1.5 rounded-xl ${isOffline ? 'text-amber bg-amber/15' : 'text-success bg-success/15'}`} title="Show connectivity guidance">{isOffline ? <WifiOff size={12} /> : <Wifi size={12} />}<span className="hidden sm:inline">{isOffline ? 'Offline' : 'Connected'}</span></button>
             <div className="w-8 h-8 bg-brand-red rounded-full flex items-center justify-center text-white text-xs font-bold" title={workflow.currentUser?.name || 'Not signed in'}>{initials}</div>
           </div>
@@ -121,9 +124,6 @@ export default function App() {
           pricebookServices={workflow.pricebookServices}
           pricebookLoading={workflow.pricebookLoading}
           pricebookError={workflow.pricebookError}
-          products={workflow.products}
-          laborRoles={workflow.laborRoles}
-          costingSettings={workflow.costingSettings}
           servicePackages={workflow.servicePackages}
           currentUser={workflow.currentUser}
           employeeProfile={workflow.employeeProfile}
@@ -163,6 +163,23 @@ export default function App() {
           onSendDelivery={workflow.sendCustomerDocument}
           onRequestSignature={workflow.requestCustomerSignature}
           onSavePestPacHandoff={workflow.savePestPacHandoffRecord}
+        /> : null}
+        {screen === 'job-costing' ? <JobCosting
+          inspection={workflow.inspection}
+          workflowData={workflowData}
+          products={workflow.products}
+          laborRoles={workflow.laborRoles}
+          settings={workflow.costingSettings}
+          estimates={workflow.estimates}
+          estimatesLoading={workflow.estimatesLoading}
+          estimatesError={workflow.estimatesError}
+          openingEstimateId={workflow.openingEstimateId}
+          isSaving={workflow.isSaving}
+          savedAt={workflow.savedAt}
+          saveError={workflow.saveError}
+          onOpenEstimate={workflow.openEstimate}
+          onChange={workflow.updateWorkflowData}
+          onSave={() => void workflow.saveEstimate()}
         /> : null}
         {screen === 'quote-history' ? <QuoteHistory estimates={workflow.estimates} loading={workflow.estimatesLoading} error={workflow.estimatesError} metrics={workflow.dashboardData?.metrics} onOpen={(id) => void openEstimate(id)} onDelete={workflow.deleteEstimate} onRefresh={() => void Promise.all([workflow.loadEstimates(), workflow.refreshOperations()])} /> : null}
         {screen === 'admin-detail' ? <AdminDetail

@@ -42,10 +42,14 @@ export class HttpBugManGraphsService implements BugManGraphsService {
     return Array.isArray(payload.graphs) ? payload.graphs as BugManGraphListItem[] : [];
   }
 
-  async openInspection({ billToNumber, locationNumber, graphKey }: OpenInspectionOptions) {
+  async openInspection({ billToNumber, locationNumber, graphKey, mode = "edit", visibleMarkerIds = [] }: OpenInspectionOptions) {
     const params = new URLSearchParams({ billTo: billToNumber, location: locationNumber });
     // BugManInspects reads the existing R2 key from `graph`, not `key`.
     if (graphKey) params.set("graph", graphKey);
+    if (mode === "presentation") {
+      params.set("mode", "presentation");
+      visibleMarkerIds.forEach((id) => params.append("marker", id));
+    }
     if (typeof window !== "undefined") params.set("returnOrigin", window.location.origin);
     return { url: `${this.config.editorUrl.replace(/\/$/, "")}/?${params.toString()}`, graphKey };
   }
