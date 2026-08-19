@@ -67,10 +67,12 @@ export class MockBugManGraphsService implements BugManGraphsService {
     return [];
   }
 
-  async openInspection({ billToNumber, locationNumber, graphKey }: OpenInspectionOptions) {
+  async openInspection({ billToNumber, locationNumber, graphKey, mode = "edit", visibleMarkerIds = [] }: OpenInspectionOptions) {
     const key = graphKey ?? `demo/${billToNumber}-${locationNumber}`;
     if (!this.documents.has(key)) this.documents.set(key, buildDemoDocument(billToNumber, locationNumber));
-    return { url: `about:blank#bugman-graphs-demo/${key}`, graphKey: key };
+    const params = new URLSearchParams({ mode });
+    visibleMarkerIds.forEach((id) => params.append("marker", id));
+    return { url: `about:blank?${params.toString()}#bugman-graphs-demo/${key}`, graphKey: key };
   }
 
   async saveGraph(graphKey: string | undefined, document: BugManGraphDocument) {

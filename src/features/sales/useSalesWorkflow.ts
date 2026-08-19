@@ -4,7 +4,7 @@
  * SalesInspection is the single live estimate record. UI-only state (open
  * dialogs, navigation, and current-user loading) stays separate, but every
  * workflow edit is reconciled into that one record before the UI derives its
- * completion state. This supports the eleven-stage inspection-to-PestPac
+ * completion state. This supports the nine-stage inspection-to-PestPac
  * workflow while keeping one record at the Ops Brain persistence boundary.
  */
 

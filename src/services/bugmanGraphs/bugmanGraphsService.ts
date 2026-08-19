@@ -31,6 +31,9 @@ export interface OpenInspectionOptions {
   locationNumber: string;
   /** Existing graph key (R2 object key) to resume, if one exists. */
   graphKey?: string;
+  mode?: "edit" | "presentation";
+  /** Graph annotation IDs approved for the customer-facing presentation. */
+  visibleMarkerIds?: string[];
 }
 
 export interface BugManGraphsService {

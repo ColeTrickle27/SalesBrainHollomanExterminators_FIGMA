@@ -2,7 +2,6 @@ import { useEffect, useState, type ChangeEvent, type ReactNode, type RefObject }
 import {
   AlertTriangle,
   Bug,
-  Calculator,
   Camera,
   CheckCircle,
   ChevronLeft,
@@ -23,24 +22,21 @@ import type { InspectionFinding, InspectionMarker, MarkerCategory } from "../typ
 import type { PricebookService } from "../types/pricebook"
 import type { PhotoReference } from "../types/property"
 import type { SalesInspection } from "../types/sales-inspection"
+import { CurrencyInput } from "../components/forms/CurrencyInput"
 import {
   LEAD_ACTIVITY_TYPES,
   type LeadActivity,
   type PestPacHandoff,
-  type SalesCostingSettings,
   type SalesDeliveryEvent,
   type SalesDeliveryInput,
   type SalesDocumentType,
   type SalesEmployeeProfile,
   type SalesGeneratedDocument,
-  type SalesLaborRole,
-  type SalesProduct,
   type SalesServicePackage,
   type SalesSignatureRequest,
 } from "../types/sales-operations"
 import type { OpsBrainUser } from "../types/user"
 import {
-  calculateCosting,
   CONSTRUCTION_OPTIONS,
   CRAWLSPACE_ACCESS_OPTIONS,
   createEmptyStructure,
@@ -50,8 +46,6 @@ import {
   PREFERRED_CONTACT_OPTIONS,
   REFERRAL_SOURCE_OPTIONS,
   STRUCTURE_TYPE_OPTIONS,
-  type EstimatedLaborUsage,
-  type EstimatedProductUsage,
   type SalesBrainMoistureReading,
   type SalesBrainQuoteOption,
   type SalesBrainStructureDetails,
@@ -62,12 +56,10 @@ const STEPS = [
   "Customer",
   "Structures & Graph",
   "Findings & Moisture",
-  "Recommended Services",
-  "Job Costing",
   "Inspection Photos",
   "Review",
   "Customer Presentation",
-  "Service Quote",
+  "Send to Customer",
   "Accept & Sign",
   "PestPac Handoff",
 ]
@@ -84,9 +76,6 @@ interface Props {
   pricebookServices: PricebookService[]
   pricebookLoading: boolean
   pricebookError: string | null
-  products: SalesProduct[]
-  laborRoles: SalesLaborRole[]
-  costingSettings: SalesCostingSettings
   servicePackages: SalesServicePackage[]
   currentUser: OpsBrainUser | null
   employeeProfile: SalesEmployeeProfile | null
@@ -136,7 +125,7 @@ export default function InspectionWizard(props: Props) {
   })
 
   useEffect(() => {
-    if (step >= 9) void props.onLoadProviderState()
+    if (step >= 7) void props.onLoadProviderState()
   }, [step, props.inspection.id, props.onLoadProviderState])
 
   return <div className="pb-32 flex flex-col min-h-screen">
@@ -159,14 +148,12 @@ export default function InspectionWizard(props: Props) {
       {step === 1 ? <CustomerStep inspection={props.inspection} data={data} onChange={props.onWorkflowDataChange} /> : null}
       {step === 2 ? <StructuresStep inspection={props.inspection} data={data} onChange={props.onWorkflowDataChange} onOpenGraph={props.onOpenGraph} /> : null}
       {step === 3 ? <FindingsMoistureStep {...props} data={data} /> : null}
-      {step === 4 ? <RecommendedServicesStep data={data} services={props.pricebookServices} packages={props.servicePackages} loading={props.pricebookLoading} error={props.pricebookError} onChange={props.onWorkflowDataChange} onSelectService={props.onSelectService} /> : null}
-      {step === 5 ? <CostingStep data={data} products={props.products} laborRoles={props.laborRoles} settings={props.costingSettings} onChange={props.onWorkflowDataChange} /> : null}
-      {step === 6 ? <PhotosStep {...props} /> : null}
-      {step === 7 ? <ReviewStep inspection={props.inspection} data={data} onStatusChange={props.onStatusChange} onAddQuoteActivity={props.onAddQuoteActivity} /> : null}
-      {step === 8 ? <PresentationStep inspection={props.inspection} data={data} services={props.pricebookServices} onChange={props.onWorkflowDataChange} onPresentation={props.onPresentation} /> : null}
-      {step === 9 ? <ServiceQuoteStep {...props} data={data} /> : null}
-      {step === 10 ? <AcceptSignStep {...props} data={data} /> : null}
-      {step === 11 ? <PestPacHandoffStep {...props} data={data} /> : null}
+      {step === 4 ? <PhotosStep {...props} /> : null}
+      {step === 5 ? <ReviewStep inspection={props.inspection} data={data} onStatusChange={props.onStatusChange} onAddQuoteActivity={props.onAddQuoteActivity} /> : null}
+      {step === 6 ? <PresentationStep inspection={props.inspection} data={data} services={props.pricebookServices} packages={props.servicePackages} loading={props.pricebookLoading} error={props.pricebookError} onChange={props.onWorkflowDataChange} onSelectService={props.onSelectService} onPresentation={props.onPresentation} /> : null}
+      {step === 7 ? <SendToCustomerStep {...props} data={data} /> : null}
+      {step === 8 ? <AcceptSignStep {...props} data={data} /> : null}
+      {step === 9 ? <PestPacHandoffStep {...props} data={data} /> : null}
     </div>
 
     <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-surface px-4 py-3 z-20">
@@ -285,14 +272,14 @@ function FindingDetailCard({ finding, moisture, onUpdate, onUpdateDetails, onRem
   </article>
 }
 
-function RecommendedServicesStep({ data, services, packages, loading, error, onChange, onSelectService }: { data: SalesBrainWorkflowData; services: PricebookService[]; packages: SalesServicePackage[]; loading: boolean; error: string | null; onChange: (data: SalesBrainWorkflowData) => void; onSelectService: (service: PricebookService) => void }) {
+function ServiceOptionsEditor({ data, services, packages, loading, error, onChange, onSelectService }: { data: SalesBrainWorkflowData; services: PricebookService[]; packages: SalesServicePackage[]; loading: boolean; error: string | null; onChange: (data: SalesBrainWorkflowData) => void; onSelectService: (service: PricebookService) => void }) {
   const options = data.quoteOptions.filter((item) => item.kind === "chocolate" || item.kind === "vanilla")
   const quantityFor = (service: PricebookService) => data.structures.reduce((sum, structure) => sum + (service.priceBy === "per_lf" ? numberValue(structure.perimeterLinearFeet) : service.priceBy === "per_sf" ? numberValue(structure.squareFootage) : service.priceBy === "per_acre" ? numberValue(structure.acreage) : service.priceBy === "per_bedroom" ? numberValue(structure.bedrooms) : 0), 0) || 1
   const calculatedPrice = (ids: string[]) => ids.reduce((sum, id) => { const service = services.find((item) => item.id === id); return sum + (service ? Math.round(service.price * quantityFor(service)) : 0) }, 0)
   const updateOption = (id: string, patch: Partial<SalesBrainQuoteOption>) => onChange({ ...data, quoteOptions: data.quoteOptions.map((item) => item.id === id ? { ...item, ...patch } : item) })
   const setServices = (option: SalesBrainQuoteOption, serviceIds: string[], packageId?: string) => updateOption(option.id, { serviceIds, packageId, oneTimePriceCents: calculatedPrice(serviceIds) })
   const toggleService = (option: SalesBrainQuoteOption, service: PricebookService) => { const next = option.serviceIds.includes(service.id) ? option.serviceIds.filter((id) => id !== service.id) : [...option.serviceIds, service.id]; setServices(option, next); if (option.kind === "chocolate" && next.includes(service.id)) onSelectService({ ...service, price: calculatedPrice(next) }) }
-  return <StepContainer icon={<ClipboardList size={20} />} title="Recommended Services" sub="Build the complete Chocolate option and practical Vanilla option">
+  return <div className="space-y-3">
     {error ? <div className="text-sm text-danger">{error}</div> : null}{loading ? <div className="text-sm text-steel">Loading Pricebook...</div> : null}
     <div className="bg-info-light border border-info/20 rounded-xl p-3 text-xs text-info">Prices use the inspection measurements for each service's Price By rule. Authorized staff can override the final selling price on each option.</div>
     <div className="grid lg:grid-cols-2 gap-4">{options.map((option) => <article key={option.id} className={`bg-white rounded-2xl p-4 shadow-sm border-2 ${option.kind === "chocolate" ? "border-brand-red" : "border-surface"}`}><div className="flex items-start justify-between gap-3"><div><div className="text-xs text-steel font-bold">RECOMMENDATION</div><h3 className="font-display text-2xl font-bold text-brand-dark uppercase">{option.name}</h3><p className="text-xs text-steel">{option.description}</p></div><span className={`px-2 py-1 text-xs font-bold rounded-lg ${option.kind === "chocolate" ? "bg-brand-red text-white" : "bg-surface text-steel"}`}>{option.kind === "chocolate" ? "Full Solution" : "Short Term"}</span></div>
@@ -300,25 +287,7 @@ function RecommendedServicesStep({ data, services, packages, loading, error, onC
       <div className="space-y-2 mt-3">{services.filter((item) => item.active).map((service) => { const selected = option.serviceIds.includes(service.id); const quantity = quantityFor(service); return <button key={service.id} onClick={() => toggleService(option, service)} className={`w-full text-left border rounded-xl p-3 ${selected ? "border-brand-red bg-brand-red/5" : "border-surface"}`}><div className="flex items-start justify-between gap-3"><div><div className="text-sm font-bold text-brand-dark">{selected ? "✓ " : "+ "}{service.name}</div><div className="text-xs text-steel">{service.description}</div></div><div className="text-right"><div className="font-mono text-sm font-bold">${((service.price * quantity) / 100).toLocaleString()}</div><div className="text-[10px] text-steel">{priceByLabel(service.priceBy)}{service.priceBy !== "variable" ? ` × ${quantity}` : ""}</div></div></div></button> })}</div>
       <div className="mt-3"><MoneyEditRow label="Selling Price Override" cents={option.oneTimePriceCents} onChange={(value) => updateOption(option.id, { oneTimePriceCents: value })} /><MoneyEditRow label="Recurring / Renewal" cents={option.recurringPriceCents} onChange={(value) => updateOption(option.id, { recurringPriceCents: value })} /><TextRow label="Warranty / Follow-Up" value={option.warranty} onChange={(value) => updateOption(option.id, { warranty: value })} /><TextRow label="Highlights (semicolon separated)" value={option.highlights.join("; ")} onChange={(value) => updateOption(option.id, { highlights: value.split(";").map((item) => item.trim()).filter(Boolean) })} /></div>
     </article>)}</div>
-  </StepContainer>
-}
-
-function CostingStep({ data, products, laborRoles, settings, onChange }: { data: SalesBrainWorkflowData; products: SalesProduct[]; laborRoles: SalesLaborRole[]; settings: SalesCostingSettings; onChange: (data: SalesBrainWorkflowData) => void }) {
-  const costing = data.costing
-  const setCosting = (patch: Partial<typeof costing>) => onChange({ ...data, costing: { ...costing, ...patch } })
-  const totals = calculateCosting(costing)
-  const addProduct = () => { const product = products.find((item) => item.active); const row: EstimatedProductUsage = { id: crypto.randomUUID(), productId: product?.id, productName: product?.name || "", sku: product?.sku || "", plannedQuantity: 1, unit: product?.unit || "unit", catalogCostCents: product?.unitCostCents || 0 }; setCosting({ productUsage: [...costing.productUsage, row] }) }
-  const updateProduct = (id: string, patch: Partial<EstimatedProductUsage>) => setCosting({ productUsage: costing.productUsage.map((row) => row.id === id ? { ...row, ...patch } : row) })
-  const addLabor = () => { const role = laborRoles.find((item) => item.active); const row: EstimatedLaborUsage = { id: crypto.randomUUID(), laborRoleId: role?.id, role: role?.name || "", service: "", hours: 1, loadedRateCents: role?.loadedRateCents || 0 }; setCosting({ laborUsage: [...costing.laborUsage, row] }) }
-  const updateLabor = (id: string, patch: Partial<EstimatedLaborUsage>) => setCosting({ laborUsage: costing.laborUsage.map((row) => row.id === id ? { ...row, ...patch } : row) })
-  return <StepContainer icon={<Calculator size={20} />} title="Job Costing" sub="Encapsulation-style product, labor, and job cost build-up">
-    <div className="bg-info-light border border-info/20 rounded-xl p-3 text-xs text-info">No inventory quantities or approval gates. Every cost and rate is snapshotted into this quote.</div>
-    <TableCard title="Estimated Product Usage" action="Add Product" onAction={addProduct}>{costing.productUsage.length === 0 ? <EmptyState title="No product usage" detail="Add estimated materials used on this job." /> : costing.productUsage.map((row) => <div key={row.id} className="grid lg:grid-cols-[2fr_1fr_90px_100px_110px_auto] gap-2 p-3 border-t border-surface"><select value={row.productId || ""} onChange={(event) => { const item = products.find((product) => product.id === event.target.value); if (item) updateProduct(row.id, { productId: item.id, productName: item.name, sku: item.sku, unit: item.unit, catalogCostCents: item.unitCostCents }) }} className="border border-surface rounded-lg px-2 py-2 text-sm"><option value="">Custom product</option>{products.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><input value={row.sku} onChange={(event) => updateProduct(row.id, { sku: event.target.value })} placeholder="SKU" className="border border-surface rounded-lg px-2 text-sm" /><input type="number" value={row.plannedQuantity} onChange={(event) => updateProduct(row.id, { plannedQuantity: Number(event.target.value) })} className="border border-surface rounded-lg px-2" /><input value={row.unit} onChange={(event) => updateProduct(row.id, { unit: event.target.value })} className="border border-surface rounded-lg px-2" /><MoneyInput cents={row.catalogCostCents} onChange={(value) => updateProduct(row.id, { catalogCostCents: value })} /><button onClick={() => setCosting({ productUsage: costing.productUsage.filter((item) => item.id !== row.id) })} className="text-danger"><Trash2 size={15} /></button></div>)}</TableCard>
-    <TableCard title="Labor Plan" action="Add Labor" onAction={addLabor}>{costing.laborUsage.length === 0 ? <EmptyState title="No labor plan" detail="Add estimated labor hours for the job." /> : costing.laborUsage.map((row) => <div key={row.id} className="grid lg:grid-cols-[1.5fr_2fr_100px_120px_auto] gap-2 p-3 border-t border-surface"><select value={row.laborRoleId || ""} onChange={(event) => { const role = laborRoles.find((item) => item.id === event.target.value); if (role) updateLabor(row.id, { laborRoleId: role.id, role: role.name, loadedRateCents: role.loadedRateCents }) }} className="border border-surface rounded-lg px-2 py-2 text-sm"><option value="">Custom role</option>{laborRoles.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><input value={row.service} onChange={(event) => updateLabor(row.id, { service: event.target.value })} placeholder="Service / task" className="border border-surface rounded-lg px-2 text-sm" /><input type="number" value={row.hours} onChange={(event) => updateLabor(row.id, { hours: Number(event.target.value) })} className="border border-surface rounded-lg px-2" /><MoneyInput cents={row.loadedRateCents} onChange={(value) => updateLabor(row.id, { loadedRateCents: value })} /><button onClick={() => setCosting({ laborUsage: costing.laborUsage.filter((item) => item.id !== row.id) })} className="text-danger"><Trash2 size={15} /></button></div>)}</TableCard>
-    <FormCard title="Job Cost Summary"><MoneyRow label="Materials" cents={totals.materialsCents} /><MoneyRow label="Labor" cents={totals.laborCents} /><MoneyEditRow label="Equipment" cents={costing.equipmentCents} onChange={(value) => setCosting({ equipmentCents: value, equipmentTravelDisposalCents: 0 })} /><MoneyEditRow label="Travel" cents={costing.travelCents} onChange={(value) => setCosting({ travelCents: value, equipmentTravelDisposalCents: 0 })} /><MoneyEditRow label="Disposal" cents={costing.disposalCents} onChange={(value) => setCosting({ disposalCents: value, equipmentTravelDisposalCents: 0 })} /><NumberRow label="Overhead %" value={costing.overheadPercent} onChange={(value) => setCosting({ overheadPercent: value })} /><NumberRow label="Contingency %" value={costing.contingencyPercent} onChange={(value) => setCosting({ contingencyPercent: value })} /><MoneyRow label="Total Direct Cost" cents={totals.directCostCents} strong /><NumberRow label="Target Margin %" value={costing.targetMarginPercent} onChange={(value) => setCosting({ targetMarginPercent: value })} /><MoneyRow label="Recommended Minimum Price" cents={totals.recommendedMinimumCents} strong /><MoneyEditRow label="Quoted Selling Price" cents={costing.sellingPriceCents} onChange={(value) => setCosting({ sellingPriceCents: value })} /><MoneyRow label="Gross Profit" cents={totals.grossProfitCents} /><ReadOnlyRow label="Gross Margin" value={`${totals.grossMarginPercent.toFixed(1)}%`} /></FormCard>
-    {costing.productUsage.length === 0 && costing.laborUsage.length === 0 ? <button onClick={() => setCosting({ travelCents: settings.equipmentTravelDisposalCents, equipmentTravelDisposalCents: 0, overheadPercent: settings.overheadPercent, contingencyPercent: settings.contingencyPercent, targetMarginPercent: settings.targetMarginPercent })} className="text-sm text-brand-red font-bold">Apply current Admin costing defaults</button> : null}
-    <div className="bg-amber-light border border-amber/25 rounded-xl p-3 text-xs text-amber"><Lock size={14} className="inline mr-2" />Internal costs never appear in customer presentation, PDFs, Gmail attachments, or BoldSign agreements.</div>
-  </StepContainer>
+  </div>
 }
 
 function PhotosStep(props: Props) {
@@ -331,7 +300,7 @@ function PhotosStep(props: Props) {
 }
 
 function ReviewStep({ inspection, data, onStatusChange, onAddQuoteActivity }: { inspection: SalesInspection; data: SalesBrainWorkflowData; onStatusChange: Props["onStatusChange"]; onAddQuoteActivity: Props["onAddQuoteActivity"] }) {
-  const checks = [["Customer and service address complete", Boolean((data.customer.company || data.customer.first || data.customer.last) && data.customer.streetAddress && data.customer.city && data.customer.zip)], ["Structure documented", data.structures.some((item) => item.structureType)], ["Findings reviewed", inspection.findings.some((item) => !item.hidden)], ["Chocolate and Vanilla built", data.quoteOptions.filter((item) => (item.kind === "chocolate" || item.kind === "vanilla") && item.serviceIds.length).length === 2], ["Job costing complete", data.costing.sellingPriceCents > 0]] as const
+  const checks = [["Customer and service address complete", Boolean((data.customer.company || data.customer.first || data.customer.last) && data.customer.streetAddress && data.customer.city && data.customer.zip)], ["Structure documented", data.structures.some((item) => item.structureType)], ["Findings reviewed", inspection.findings.some((item) => !item.hidden)]] as const
   const ready = checks.every((item) => item[1])
   const [activityOpen, setActivityOpen] = useState(false)
   const [activityType, setActivityType] = useState("Quote Follow-Up")
@@ -339,14 +308,14 @@ function ReviewStep({ inspection, data, onStatusChange, onAddQuoteActivity }: { 
   return <StepContainer icon={<CheckCircle size={20} />} title="Review" sub="Staff-only completeness check before customer presentation">
     <div className={`rounded-xl p-3 flex items-center gap-2 ${ready ? "bg-success-light text-success" : "bg-amber-light text-amber"}`}>{ready ? <CheckCircle size={16} /> : <AlertTriangle size={16} />}<span className="text-sm font-semibold">{ready ? `${inspection.estimateNumber} is ready for customer presentation` : "Resolve the warnings below before presenting"}</span></div>
     <div className="bg-white rounded-2xl p-4 shadow-sm space-y-2">{checks.map(([label, value]) => <div key={label} className="flex items-center gap-2">{value ? <CheckCircle size={16} className="text-success" /> : <AlertTriangle size={16} className="text-amber" />}<span className="text-sm">{label}</span></div>)}</div>
-    <div className="grid sm:grid-cols-3 gap-3"><Summary label="Findings" value={inspection.findings.filter((item) => !item.hidden).length.toString()} /><Summary label="Customer Photos" value={inspection.photos.filter((photo) => photo.customerVisible !== false && photo.uploadStatus !== "error").length.toString()} /><Summary label="Quoted Price" value={`$${(data.costing.sellingPriceCents / 100).toLocaleString()}`} /></div>
+    <div className="grid sm:grid-cols-3 gap-3"><Summary label="Findings" value={inspection.findings.filter((item) => !item.hidden).length.toString()} /><Summary label="Customer Photos" value={inspection.photos.filter((photo) => photo.customerVisible !== false && photo.uploadStatus !== "error").length.toString()} /><Summary label="Structures" value={data.structures.length.toString()} /></div>
     <div className="grid sm:grid-cols-2 gap-2"><button onClick={() => void onStatusChange("declined")} className="rounded-xl border border-danger text-danger py-2.5 font-bold">Record Customer Declined</button><button onClick={() => setActivityOpen((value) => !value)} disabled={!inspection.leadId} className="rounded-xl bg-brand-dark text-white py-2.5 font-bold disabled:opacity-40">Add Customer Interaction</button></div>
     {activityOpen ? <FormCard title="Customer Interaction"><ChoiceRow label="Touch Point" value={activityType} options={LEAD_ACTIVITY_TYPES} onChange={setActivityType} /><TextRow label="Notes" value={activityNote} onChange={setActivityNote} /><button onClick={async () => { await onAddQuoteActivity({ type: activityType, note: activityNote, happenedAt: new Date().toISOString(), quoteId: inspection.id }); setActivityNote(""); setActivityOpen(false) }} className="w-full bg-brand-red text-white rounded-xl py-2.5 font-bold">Log Interaction</button></FormCard> : null}
     <p className="text-xs text-steel">There is no manual “Mark Sent” button. SalesBrain records Sent only after Gmail accepts the message.</p>
   </StepContainer>
 }
 
-function PresentationStep({ inspection, data, services, onChange, onPresentation }: { inspection: SalesInspection; data: SalesBrainWorkflowData; services: PricebookService[]; onChange: (data: SalesBrainWorkflowData) => void; onPresentation: () => void }) {
+function PresentationStep({ inspection, data, services, packages, loading, error, onChange, onSelectService, onPresentation }: { inspection: SalesInspection; data: SalesBrainWorkflowData; services: PricebookService[]; packages: SalesServicePackage[]; loading: boolean; error: string | null; onChange: (data: SalesBrainWorkflowData) => void; onSelectService: (service: PricebookService) => void; onPresentation: () => void }) {
   const customerOption = data.quoteOptions.find((item) => item.kind === "customer-specified")
   const choose = (id: string) => onChange({ ...data, selectedQuoteOptionId: id })
   const ensureCustomerOption = () => {
@@ -358,13 +327,14 @@ function PresentationStep({ inspection, data, services, onChange, onPresentation
   const toggleCustomService = (service: PricebookService) => { if (!selectedCustom) return; const serviceIds = selectedCustom.serviceIds.includes(service.id) ? selectedCustom.serviceIds.filter((id) => id !== service.id) : [...selectedCustom.serviceIds, service.id]; const total = serviceIds.reduce((sum, id) => sum + (services.find((item) => item.id === id)?.price || 0), 0); onChange({ ...data, quoteOptions: data.quoteOptions.map((item) => item.id === selectedCustom.id ? { ...item, serviceIds, oneTimePriceCents: total } : item) }) }
   return <StepContainer icon={<Home size={20} />} title="Customer Presentation" sub="Findings first, then photos and simple service choices">
     <div className="grid sm:grid-cols-3 gap-3"><Summary label="Approved Findings" value={inspection.findings.filter((item) => !item.hidden && item.customerVisible !== false).length.toString()} /><Summary label="Approved Photos" value={inspection.photos.filter((item) => item.customerVisible !== false && item.uploadStatus !== "error").length.toString()} /><Summary label="Visible Graph Notes" value={Object.values(data.graphNoteVisibility).filter((value) => value !== false).length.toString()} /></div>
-    <button onClick={onPresentation} className="w-full bg-brand-red text-white font-display text-xl font-bold uppercase py-3 rounded-2xl"><Lock size={20} className="inline mr-2" />Open Customer Presentation Mode</button>
-    <div className="grid md:grid-cols-3 gap-3">{data.quoteOptions.filter((item) => item.kind === "chocolate" || item.kind === "vanilla").map((option) => <button key={option.id} onClick={() => choose(option.id)} className={`bg-white rounded-2xl p-4 text-left border-2 ${data.selectedQuoteOptionId === option.id ? "border-brand-red" : "border-surface"}`}><div className="text-xs text-steel">Recommendation</div><div className="font-display text-xl font-bold text-brand-dark uppercase">{option.name}</div><div className="font-mono text-2xl font-bold mt-3">${(option.oneTimePriceCents / 100).toLocaleString()}</div><div className="text-xs text-steel mt-2">{option.serviceIds.length} included service{option.serviceIds.length === 1 ? "" : "s"}</div></button>)}<button onClick={ensureCustomerOption} className={`bg-white rounded-2xl p-4 text-left border-2 ${selectedCustom && data.selectedQuoteOptionId === selectedCustom.id ? "border-brand-red" : "border-surface"}`}><div className="text-xs text-steel">Option 3</div><div className="font-display text-xl font-bold text-brand-dark uppercase">Other — Customer Specified</div><div className="text-xs text-steel mt-2">Build a custom combination of services.</div></button></div>
+    <div><h3 className="font-display text-xl font-bold text-brand-dark uppercase mb-3">Customer Service Options</h3><ServiceOptionsEditor data={data} services={services} packages={packages} loading={loading} error={error} onChange={onChange} onSelectService={onSelectService} /></div>
+    <button onClick={ensureCustomerOption} className={`bg-white rounded-2xl p-4 text-left border-2 ${selectedCustom && data.selectedQuoteOptionId === selectedCustom.id ? "border-brand-red" : "border-surface"}`}><div className="text-xs text-steel">Optional Customer Choice</div><div className="font-display text-xl font-bold text-brand-dark uppercase">Other — Customer Specified</div><div className="text-xs text-steel mt-2">Build a custom combination of services.</div></button>
     {selectedCustom && data.selectedQuoteOptionId === selectedCustom.id ? <FormCard title="Customer-Specified Services"><div className="flex flex-wrap gap-2 py-2">{services.filter((item) => item.active).map((service) => <button key={service.id} onClick={() => toggleCustomService(service)} className={`px-3 py-2 rounded-xl border text-xs font-bold ${selectedCustom.serviceIds.includes(service.id) ? "bg-brand-dark border-brand-dark text-white" : "border-surface text-steel"}`}>{selectedCustom.serviceIds.includes(service.id) ? "✓ " : "+ "}{service.name}</button>)}</div><MoneyEditRow label="Customer-Specified Price" cents={selectedCustom.oneTimePriceCents} onChange={(value) => onChange({ ...data, quoteOptions: data.quoteOptions.map((item) => item.id === selectedCustom.id ? { ...item, oneTimePriceCents: value } : item) })} /></FormCard> : null}
+    <button onClick={onPresentation} className="w-full bg-brand-red text-white font-display text-xl font-bold uppercase py-3 rounded-2xl"><Lock size={20} className="inline mr-2" />Open Customer Presentation Mode</button>
   </StepContainer>
 }
 
-function ServiceQuoteStep(props: Props & { data: SalesBrainWorkflowData }) {
+function SendToCustomerStep(props: Props & { data: SalesBrainWorkflowData }) {
   const typeOptions = Object.keys(DOCUMENT_LABELS) as Array<Exclude<SalesDocumentType, "agreement">>
   const [documentType, setDocumentType] = useState<Exclude<SalesDocumentType, "agreement">>("bundle")
   const [to, setTo] = useState(props.data.customer.email)
@@ -377,7 +347,7 @@ function ServiceQuoteStep(props: Props & { data: SalesBrainWorkflowData }) {
   const latest = props.generatedDocuments.find((item) => item.type === documentType)
   const act = async (work: () => Promise<unknown>, success: string) => { setResult(""); try { await work(); setResult(success) } catch (error) { setResult(error instanceof Error ? error.message : "The action could not be completed.") } }
   const changeType = (value: string) => { const next = value as Exclude<SalesDocumentType, "agreement">; setDocumentType(next); setSubject(`${DOCUMENT_LABELS[next]} — Holloman Exterminators`) }
-  return <StepContainer icon={<Mail size={20} />} title="Service Quote" sub="Generate customer documents, then send them through the logged-in employee's Gmail">
+  return <StepContainer icon={<Mail size={20} />} title="Send to Customer" sub="Generate customer documents, then send them through the logged-in employee's Gmail">
     {selected ? <div className="bg-white rounded-2xl p-4 shadow-sm"><div className="text-xs text-steel">Selected Customer Option</div><div className="font-display text-xl font-bold text-brand-dark uppercase">{selected.name}</div><div className="font-mono text-3xl font-bold mt-2">${(selected.oneTimePriceCents / 100).toLocaleString()}</div></div> : <EmptyState title="No customer option selected" detail="Return to Customer Presentation and select Chocolate, Vanilla, or Customer Specified." />}
     <FormCard title="1. Generate / Save"><ChoiceRow label="Document" value={documentType} options={typeOptions} optionLabel={(value) => DOCUMENT_LABELS[value as keyof typeof DOCUMENT_LABELS]} onChange={changeType} /><button onClick={() => void act(() => props.onCreateDocument(documentType), `${DOCUMENT_LABELS[documentType]} generated and saved.`)} disabled={props.providerActionLoading || !selected} className="w-full bg-brand-dark text-white rounded-xl py-3 font-bold disabled:opacity-40"><Save size={17} className="inline mr-2" />Generate / Save PDF</button>{latest ? <p className="text-xs text-success mt-2">Saved: {latest.filename}</p> : <p className="text-xs text-steel mt-2">Generate this document before sending it.</p>}</FormCard>
     <FormCard title="2. Send through Gmail">
@@ -451,13 +421,9 @@ function priceByLabel(value: PricebookService["priceBy"]) { return value === "pe
 function splitEmails(value: string) { return value.split(/[;,]/).map((item) => item.trim()).filter(Boolean) }
 function StepContainer({ icon, title, sub, children }: { icon: ReactNode; title: string; sub: string; children: ReactNode }) { return <div className="space-y-3 pb-3"><div className="bg-brand-charcoal rounded-2xl p-4 flex items-center gap-3"><div className="w-10 h-10 bg-brand-red rounded-xl flex items-center justify-center text-white">{icon}</div><div><h2 className="font-display text-xl font-bold text-white uppercase tracking-wide">{title}</h2><p className="text-xs text-silver">{sub}</p></div></div>{children}</div> }
 function FormCard({ title, children }: { title: string; children: ReactNode }) { return <div className="bg-white rounded-2xl shadow-sm p-4"><h3 className="font-display text-base font-bold text-brand-dark uppercase tracking-wide mb-2">{title}</h3><div className="divide-y divide-surface">{children}</div></div> }
-function TableCard({ title, action, onAction, children }: { title: string; action: string; onAction: () => void; children: ReactNode }) { return <div className="bg-white rounded-2xl shadow-sm overflow-hidden"><div className="px-3 py-2 bg-brand-charcoal flex justify-between"><span className="font-display text-sm font-bold text-white uppercase">{title}</span><button onClick={onAction} className="text-xs text-white font-bold"><Plus size={13} className="inline" /> {action}</button></div>{children}</div> }
 function ChoiceRow({ label, value, options, onChange, disabled = false, optionLabel }: { label: string; value: string; options: readonly string[]; onChange: (value: string) => void; disabled?: boolean; optionLabel?: (value: string) => string }) { return <div className={`py-3 ${disabled ? "opacity-45" : ""}`}><div className="text-xs text-steel font-semibold mb-2">{label}</div><div className="flex flex-wrap gap-2">{options.map((option) => <button type="button" key={option} disabled={disabled} onClick={() => onChange(option)} className={`px-3 py-2 rounded-xl text-xs font-bold border disabled:cursor-not-allowed ${value === option ? "bg-brand-dark border-brand-dark text-white" : "bg-white border-surface text-steel"}`}>{optionLabel ? optionLabel(option) : option}</button>)}</div></div> }
 function TextRow({ label, value, onChange, type = "text", disabled = false, inputMode }: { label: string; value: string; onChange: (value: string) => void; type?: string; disabled?: boolean; inputMode?: "numeric" | "text" | "email" }) { return <label className={`py-2 grid sm:grid-cols-[190px_1fr] gap-2 items-center ${disabled ? "opacity-45" : ""}`}><span className="text-xs text-steel font-semibold">{label}</span><input type={type} inputMode={inputMode} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)} className="w-full text-sm border border-surface rounded-xl px-3 py-2 disabled:bg-surface disabled:cursor-not-allowed" /></label> }
-function NumberRow({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) { return <label className="py-2 grid grid-cols-[1fr_130px] gap-3 items-center"><span className="text-sm text-steel">{label}</span><input type="number" value={value} onChange={(event) => onChange(Number(event.target.value))} className="border border-surface rounded-lg px-2 py-2 text-right" /></label> }
-function MoneyInput({ cents, onChange }: { cents: number; onChange: (value: number) => void }) { return <input type="number" step="0.01" value={(cents / 100).toFixed(2)} onChange={(event) => onChange(Math.max(0, Math.round(Number(event.target.value) * 100)))} className="border border-surface rounded-lg px-2 py-2 text-right font-mono" /> }
-function MoneyEditRow({ label, cents, onChange }: { label: string; cents: number; onChange: (value: number) => void }) { return <div className="py-2 grid grid-cols-[1fr_150px] gap-3 items-center"><span className="text-sm text-steel">{label}</span><MoneyInput cents={cents} onChange={onChange} /></div> }
-function MoneyRow({ label, cents, strong = false }: { label: string; cents: number; strong?: boolean }) { return <div className={`py-2 flex items-center justify-between ${strong ? "font-bold text-brand-dark" : "text-sm text-steel"}`}><span>{label}</span><span className="font-mono">${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div> }
+function MoneyEditRow({ label, cents, onChange }: { label: string; cents: number; onChange: (value: number) => void }) { return <div className="py-2 grid grid-cols-[1fr_150px] gap-3 items-center"><span className="text-sm text-steel">{label}</span><CurrencyInput ariaLabel={label} cents={cents} onChange={onChange} className="border border-surface rounded-lg px-2 py-2 text-right font-mono min-w-0" /></div> }
 function ReadOnlyRow({ label, value }: { label: string; value: string }) { return <div className="py-2 grid sm:grid-cols-[190px_1fr] gap-2"><span className="text-xs text-steel font-semibold">{label}</span><span className="text-sm text-brand-dark break-all">{value}</span></div> }
 function EmptyState({ title, detail }: { title: string; detail: string }) { return <div className="bg-white rounded-2xl p-6 text-center"><div className="font-semibold text-brand-dark">{title}</div><p className="text-sm text-steel mt-1">{detail}</p></div> }
 function Summary({ label, value }: { label: string; value: string }) { return <div className="bg-white rounded-2xl p-4 shadow-sm text-center"><div className="font-display text-2xl font-bold text-brand-dark">{value}</div><div className="text-xs text-steel">{label}</div></div> }

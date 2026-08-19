@@ -23,7 +23,7 @@ test("legacy version-1 structure data normalizes into a stable-ID structures arr
     customer: { phone: "", email: "", preferredContact: "Text", referralSource: "Call-In", referralSourceOther: "", serviceAddress: "", accountNotes: "" },
     structure: { structureType: "Home / Main Structure", structureOther: "", construction: "Brick Veneer", occupancy: "Owner-Occupied", squareFootage: "1800", perimeterLinearFeet: "200", wallHeightFeet: "3", access: "Low Crawlspace Height" },
   })
-  assert.equal(normalized.version, 3)
+  assert.equal(normalized.version, 4)
   assert.equal(normalized.structures.length, 1)
   assert.ok(normalized.structures[0].id)
   assert.equal(normalized.structures[0].structureType, "Home / Main Structure")
@@ -32,6 +32,21 @@ test("legacy version-1 structure data normalizes into a stable-ID structures arr
   assert.equal(normalized.customer.state, "NC")
   assert.equal(normalized.quoteOptions[0].kind, "chocolate")
   assert.equal(normalized.quoteOptions[1].kind, "vanilla")
+})
+
+test("version-3 workflow progress remaps removed services and costing steps", () => {
+  const normalized = normalizeSalesBrainWorkflowData({
+    version: 3,
+    currentStep: 9,
+    completedSteps: [1, 2, 3, 4, 5, 6, 7, 8],
+  })
+  assert.equal(normalized.version, 4)
+  assert.equal(normalized.currentStep, 7)
+  assert.deepEqual(normalized.completedSteps, [1, 2, 3, 4, 5, 6])
+
+  const removedPage = normalizeSalesBrainWorkflowData({ version: 3, currentStep: 5, completedSteps: [4, 5] })
+  assert.equal(removedPage.currentStep, 4)
+  assert.deepEqual(removedPage.completedSteps, [])
 })
 
 test("structure creation and button catalogs expose the approved Figma choices", () => {
