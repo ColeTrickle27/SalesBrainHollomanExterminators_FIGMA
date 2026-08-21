@@ -94,7 +94,7 @@ Use the actual current environment rather than assuming Figma Make behavior appl
 
 Important areas include:
 
-- `src/app/App.tsx` — application composition root
+- `src/App.tsx` — application composition root
 - `src/features/sales/` — centralized sales workflow state and related logic
 - `src/components/` — UI components organized by domain
 - `src/types/` — shared domain models
@@ -179,7 +179,7 @@ Design customer-related data so future PestPac synchronization remains practical
 
 # PestPac
 
-PestPac remains Holloman Exterminators' operational system of record for customer, location, service, scheduling, billing, service-history, and related pest-control operational data unless explicitly changed by an approved architecture decision.
+PestPac remains Holloman Exterminators' operational system of record for customer, location, service, scheduling, billing, service-history, and related pest-control operational data unless explicitly [...]
 
 SalesBrain does not independently own those workflows.
 
