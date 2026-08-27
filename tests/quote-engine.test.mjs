@@ -3,8 +3,12 @@ import { readFileSync } from "node:fs"
 import test from "node:test"
 
 import {
+  createEmptyQuoteEngineInput,
   customerPricingSnapshotFromQuoteEngine,
+  hasQuoteEngineQuoteContext,
   initializeQuoteEngineInputFromRecommendation,
+  quoteEngineEditableStateFromSavedSnapshot,
+  quoteEngineInputForSave,
   quoteEngineInputFromSnapshot,
   quoteEngineMarginMessage,
 } from "../src/types/quote-engine.ts"
@@ -229,6 +233,123 @@ test("server snapshot restores quote choices without changing unavailable econom
     ),
     "Margin unavailable — cost data incomplete",
   )
+})
+
+test("a snapshot-backed quote omits reconstructed input until a quote edit is made", () => {
+  const editable = quoteEngineEditableStateFromSavedSnapshot(mixedSnapshot)
+  assert.equal(editable.dirty, false)
+  assert.equal(quoteEngineInputForSave(editable), undefined)
+
+  const notesOnly = { ...editable }
+  assert.equal(notesOnly.dirty, false)
+  assert.equal(quoteEngineInputForSave(notesOnly), undefined)
+})
+
+test("selling-price and material edits include Quote Engine input on save", () => {
+  const restored = quoteEngineInputFromSnapshot(mixedSnapshot)
+  const sellingPriceEdited = {
+    ...restored,
+    services: restored.services.map((line) =>
+      line.lineId === "termite"
+        ? { ...line, sellingPriceCents: 45000 }
+        : line,
+    ),
+  }
+  assert.equal(
+    quoteEngineInputForSave({ input: sellingPriceEdited, dirty: true }),
+    sellingPriceEdited,
+  )
+
+  const materialEdited = {
+    ...restored,
+    services: restored.services.map((line) =>
+      line.lineId === "termite"
+        ? {
+            ...line,
+            materialOverrides: [
+              {
+                productId: "product-1",
+                estimatedConsumption: 1.2,
+                consumptionUnit: "gallon",
+              },
+            ],
+          }
+        : line,
+    ),
+  }
+  assert.equal(
+    quoteEngineInputForSave({ input: materialEdited, dirty: true }),
+    materialEdited,
+  )
+})
+
+test("an authoritative save restores editable choices and resets Quote Engine dirtiness", () => {
+  const saved = quoteEngineEditableStateFromSavedSnapshot(mixedSnapshot)
+  assert.equal(saved.dirty, false)
+  assert.deepEqual(saved.input, quoteEngineInputFromSnapshot(mixedSnapshot))
+  assert.equal(quoteEngineInputForSave(saved), undefined)
+})
+
+test("saved snapshot remains the display authority when no Quote Engine edit occurred", () => {
+  const workflowSource = readFileSync(
+    new URL("../src/features/sales/useSalesWorkflow.ts", import.meta.url),
+    "utf8",
+  )
+  assert.match(
+    workflowSource,
+    /quoteEngineCalculation:\s*quoteEngineCalculation \?\? inspection\.quoteEngineSnapshot/,
+  )
+  assert.match(
+    workflowSource,
+    /setQuoteEngineInputDirty\(savedEditableState\.dirty\)/,
+  )
+})
+
+test("lead and existing-customer contexts are valid while a context-free draft is not", () => {
+  assert.equal(hasQuoteEngineQuoteContext({ leadId: "lead-1" }), true)
+  assert.equal(
+    hasQuoteEngineQuoteContext({
+      billToNumber: "100",
+      locationNumber: "200",
+    }),
+    true,
+  )
+  assert.equal(hasQuoteEngineQuoteContext({ billToNumber: "100" }), false)
+  assert.equal(hasQuoteEngineQuoteContext({}), false)
+
+  const replacementContext = createEmptyQuoteEngineInput({
+    quoteId: "quote-2",
+    billToNumber: "300",
+    locationNumber: "400",
+  })
+  assert.deepEqual(replacementContext.services, [])
+  assert.deepEqual(replacementContext.customLineItems, [])
+})
+
+test("workflow keeps lead quotes, clears changed-customer quote data, and blocks orphan saves", () => {
+  const workflowSource = readFileSync(
+    new URL("../src/features/sales/useSalesWorkflow.ts", import.meta.url),
+    "utf8",
+  )
+  const quoteBuilderSource = readFileSync(
+    new URL("../src/screens/JobCosting.tsx", import.meta.url),
+    "utf8",
+  )
+  const dashboardSource = readFileSync(
+    new URL("../src/screens/Dashboard.tsx", import.meta.url),
+    "utf8",
+  )
+  assert.match(workflowSource, /const startQuoteForLead = \(lead: SalesLead\)/)
+  assert.match(workflowSource, /leadId: lead\.id/)
+  assert.match(workflowSource, /quoteEngineSnapshot: undefined/)
+  assert.match(workflowSource, /quoteNotes: undefined/)
+  assert.match(
+    workflowSource,
+    /Select an existing customer or start a SalesBrain lead quote before saving\./,
+  )
+  assert.match(quoteBuilderSource, /disabled=\{!hasQuoteContext \|\| !serviceToAdd\}/)
+  assert.match(quoteBuilderSource, /!hasQuoteContext \|\| props\.isSaving/)
+  assert.match(dashboardSource, /Start Quote<\/button>/)
 })
 
 test("mixed General Pest Control quotes keep the full customer total while margin uses the saved eligible basis", () => {
