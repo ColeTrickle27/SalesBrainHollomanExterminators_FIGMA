@@ -7,11 +7,16 @@
  */
 
 import type { CustomerBillTo, CustomerLocation } from "./customer"
+
 import type { PhotoReference, PropertyInspection } from "./property"
+
 import type { InspectionFinding, InspectionMarker } from "./findings"
+
 import type { ServiceRecommendation } from "./recommendations"
+
 import type { WorkflowStepId } from "./workflow"
 import type { SalesBrainWorkflowData } from "./figma-workflow"
+import type { QuoteEngineInput, QuoteEngineSnapshot } from "./quote-engine"
 
 export type SalesInspectionStatus = "draft" | "sent" | "accepted" | "declined"
 
@@ -20,14 +25,20 @@ export type SalesInspectionStatus = "draft" | "sent" | "accepted" | "declined"
  * snapshot, rather than a live pricebook lookup, so a saved estimate remains
  * historically accurate when a future Pricebook entry changes.
  */
+
 export interface SalesInspectionPricingSnapshot {
   currency: "USD"
+
   totalCents: number
+
   lineItems: Array<{
     id: string
+
     label: string
+
     amountCents: number
   }>
+
   quotedAt: string
 }
 
@@ -38,6 +49,7 @@ export interface SalesInspection {
   leadId?: string
 
   billTo?: CustomerBillTo
+
   location?: CustomerLocation
 
   property?: PropertyInspection
@@ -53,15 +65,26 @@ export interface SalesInspection {
   hiddenFindingIds?: string[]
 
   recommendations: ServiceRecommendation[]
+
   /** The recommendation currently highlighted in the Recommended Service step, if any. */
+
   selectedRecommendationId?: string
+
   /** The quoted amount retained with this estimate, independent of future Pricebook changes. */
+
   pricingSnapshot?: SalesInspectionPricingSnapshot
+  /** Customer-facing notes for the quote; separate from internal findings and costs. */
+  quoteNotes?: string
+  /** Quote-specific choices sent to OpsBrain for authoritative calculation. */
+  quoteEngineInput?: QuoteEngineInput
+  /** Server-calculated historical Quote Engine economics. */
+  quoteEngineSnapshot?: QuoteEngineSnapshot
 
   /** Persisted state for the redesigned nine-stage Figma workflow. */
   workflowData?: SalesBrainWorkflowData
 
   activeStep: WorkflowStepId
+
   completedSteps: WorkflowStepId[]
 
   status: SalesInspectionStatus
@@ -73,8 +96,12 @@ export interface SalesInspection {
   boldSignDocumentId?: string
   pestPacHandoffStatus?: "not_ready" | "pending" | "completed"
   /** Set only after the technician explicitly builds the customer report. */
+
   reportBuiltAt?: string
+
   createdBy: string
+
   createdAt: string
+
   updatedAt: string
 }
