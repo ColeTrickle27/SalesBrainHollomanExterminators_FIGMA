@@ -117,15 +117,9 @@ export interface SalesEmployeeProfile {
   updatedBy?: string
 }
 
-export interface SalesBrainMigrationCounts {
-  imported: number
-  skipped: number
-  d1Count: number
-}
-
 export interface SalesBrainMigrationResult {
-  estimates: SalesBrainMigrationCounts
-  pricebookServices: SalesBrainMigrationCounts
+  estimates: { imported: number; skipped: number; d1Count: number }
+  pricebookServices: { imported: number; skipped: number; d1Count: number }
   sourceObjectsDeleted: 0
 }
 

@@ -155,6 +155,11 @@ export interface QuoteEngineRecommendedService {
   active: boolean
 }
 
+export interface QuoteEngineEditableInputState {
+  input: QuoteEngineInput | undefined
+  dirty: boolean
+}
+
 export function createEmptyQuoteEngineInput(
   context: QuoteEngineContext,
 ): QuoteEngineInput {
@@ -165,6 +170,34 @@ export function quoteEngineInputHasLines(input?: QuoteEngineInput | null) {
   return Boolean(
     input && (input.services.length || input.customLineItems.length),
   )
+}
+
+/** A quote can be tied to a SalesBrain lead or a complete existing customer. */
+export function hasQuoteEngineQuoteContext(context: QuoteEngineContext) {
+  return Boolean(
+    context.leadId || (context.billToNumber && context.locationNumber),
+  )
+}
+
+/**
+ * A saved snapshot is the authoritative historical record. Reconstructed input
+ * is only a local editing convenience until a user changes it.
+ */
+export function quoteEngineEditableStateFromSavedSnapshot(
+  snapshot?: QuoteEngineSnapshot,
+  persistedInput?: QuoteEngineInput,
+): QuoteEngineEditableInputState {
+  return {
+    input: snapshot ? quoteEngineInputFromSnapshot(snapshot) : persistedInput,
+    dirty: false,
+  }
+}
+
+/** Only a user-edited quote may be sent back for a fresh server calculation. */
+export function quoteEngineInputForSave(
+  state: QuoteEngineEditableInputState,
+) {
+  return state.dirty ? state.input : undefined
 }
 
 /**

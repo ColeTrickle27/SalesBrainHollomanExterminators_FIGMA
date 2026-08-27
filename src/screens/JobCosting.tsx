@@ -13,6 +13,7 @@ import { CurrencyInput } from "../components/forms/CurrencyInput"
 import type { SalesInspection } from "../types/sales-inspection"
 import type { PricebookService } from "../types/pricebook"
 import {
+  hasQuoteEngineQuoteContext,
   quoteEngineMarginMessage,
   type QuoteEngineInput,
   type QuoteEngineInternalLine,
@@ -214,6 +215,11 @@ function QuotePicker({ hasQuoteContext, onClose, ...props }: QuotePickerProps) {
 
 function QuoteBuilder(props: Props) {
   const input = props.inspection.quoteEngineInput
+  const hasQuoteContext = hasQuoteEngineQuoteContext({
+    leadId: props.inspection.leadId,
+    billToNumber: props.inspection.billTo?.billToNumber,
+    locationNumber: props.inspection.location?.locationNumber,
+  })
   const [serviceToAdd, setServiceToAdd] = useState("")
   const activeServices = useMemo(
     () => props.pricebookServices.filter((service) => service.active),
@@ -245,6 +251,7 @@ function QuoteBuilder(props: Props) {
   const services = input?.services ?? []
   const customLines = input?.customLineItems ?? []
   const addService = () => {
+    if (!hasQuoteContext) return
     const service = activeServices.find((item) => item.id === serviceToAdd)
     if (!service) return
     updateInput((current) => ({
@@ -260,7 +267,8 @@ function QuoteBuilder(props: Props) {
       ],
     }))
   }
-  const addCustomLine = () =>
+  const addCustomLine = () => {
+    if (!hasQuoteContext) return
     updateInput((current) => ({
       ...current,
       customLineItems: [
@@ -273,11 +281,13 @@ function QuoteBuilder(props: Props) {
         },
       ],
     }))
+  }
 
   return (
     <div className="pb-28 px-4 pt-5 max-w-5xl mx-auto space-y-4">
       <QuoteBuilderHeader
         inspection={props.inspection}
+        workflowData={props.workflowData}
         currentUser={props.currentUser}
       />
       <section className="bg-white rounded-2xl p-4 shadow-sm space-y-4">
@@ -286,10 +296,10 @@ function QuoteBuilder(props: Props) {
             <h2 className="font-display text-xl font-bold text-brand-dark uppercase">
               Customer Quote
             </h2>
-            <p className="text-sm text-steel mt-1">
-              Choose services and quote-specific customer wording. OpsBrain
-              calculates the economics.
-            </p>
+          <p className="text-sm text-steel mt-1">
+            Choose services and quote-specific customer wording. OpsBrain
+            calculates the economics.
+          </p>
           </div>
           <div className="text-right">
             <div className="text-xs text-steel uppercase font-semibold">
@@ -303,6 +313,12 @@ function QuoteBuilder(props: Props) {
             </div>
           </div>
         </div>
+        {!hasQuoteContext ? (
+          <div className="rounded-xl bg-amber/10 border border-amber/30 px-3 py-2 text-sm text-brand-dark">
+            Select an existing customer or start a quote from a SalesBrain lead
+            before adding services or saving this quote.
+          </div>
+        ) : null}
         <label className="block">
           <span className="text-xs text-steel uppercase font-semibold">
             Customer-facing quote notes
@@ -325,6 +341,7 @@ function QuoteBuilder(props: Props) {
                 aria-label="Service to add"
                 value={serviceToAdd}
                 onChange={(event) => setServiceToAdd(event.target.value)}
+                disabled={!hasQuoteContext}
                 className="border border-surface rounded-lg px-2 py-2 text-sm max-w-52"
               >
                 <option value="">Choose a service</option>
@@ -336,7 +353,7 @@ function QuoteBuilder(props: Props) {
               </select>
               <button
                 onClick={addService}
-                disabled={!serviceToAdd}
+                disabled={!hasQuoteContext || !serviceToAdd}
                 className="bg-brand-red text-white rounded-lg px-3 py-2 text-sm font-bold disabled:opacity-50"
               >
                 <Plus size={15} className="inline mr-1" />
@@ -371,7 +388,8 @@ function QuoteBuilder(props: Props) {
             </h3>
             <button
               onClick={addCustomLine}
-              className="text-sm font-bold text-brand-red"
+              disabled={!hasQuoteContext}
+              className="text-sm font-bold text-brand-red disabled:opacity-50"
             >
               <Plus size={15} className="inline mr-1" />
               Add Custom Line Item
@@ -397,7 +415,9 @@ function QuoteBuilder(props: Props) {
         <div className="max-w-5xl mx-auto">
           <button
             onClick={props.onSave}
-            disabled={props.isSaving || props.quoteEngineCalculating}
+            disabled={
+              !hasQuoteContext || props.isSaving || props.quoteEngineCalculating
+            }
             className="w-full bg-brand-red text-white rounded-xl py-3 font-display text-lg font-bold uppercase disabled:opacity-50"
           >
             <Save size={17} className="inline mr-2" />
@@ -418,16 +438,33 @@ function QuoteBuilder(props: Props) {
 
 function QuoteBuilderHeader({
   inspection,
+  workflowData,
   currentUser,
 }: {
   inspection: SalesInspection
+  workflowData: SalesBrainWorkflowData
   currentUser: OpsBrainUser | null
 }) {
-  const customerName = inspection.billTo?.billToName || "New SalesBrain lead"
+  const leadName =
+    workflowData.customer.company ||
+    [workflowData.customer.first, workflowData.customer.last]
+      .filter(Boolean)
+      .join(" ")
+  const customerName =
+    inspection.billTo?.billToName ||
+    (inspection.leadId ? leadName || "SalesBrain lead" : "Customer or lead not selected")
   const address =
     inspection.location?.locationAddress ||
     inspection.location?.locationName ||
-    "Customer or lead details not selected"
+    (inspection.leadId
+      ? [
+          workflowData.customer.streetAddress,
+          workflowData.customer.city,
+          workflowData.customer.zip,
+        ]
+          .filter(Boolean)
+          .join(", ") || "Lead address not provided"
+      : "Customer or lead details not selected")
   return (
     <div className="bg-brand-charcoal rounded-2xl p-5 text-white flex items-start gap-3">
       <Calculator size={24} className="mt-0.5" />
