@@ -1,20 +1,31 @@
 export type { CustomerFilesService } from "./customerFilesService"
+
 export type { CurrentUserService } from "./currentUserService"
+
 export type {
   SalesBrainEstimatesService,
   SalesBrainEstimateListItem,
 } from "./salesBrainEstimatesService"
+
 export type { SalesBrainPricebookService } from "./salesBrainPricebookService"
 export type { SalesBrainOperationsService } from "./salesBrainOperationsService"
 export type { QuoteEngineService } from "./quoteEngineService"
 export { OpsBrainAuthError } from "./errors"
+
 export { HttpCustomerFilesService } from "./httpCustomerFilesService"
+
 export { MockCustomerFilesService } from "./mockCustomerFilesService"
+
 export { HttpCurrentUserService } from "./httpCurrentUserService"
+
 export { MockCurrentUserService } from "./mockCurrentUserService"
+
 export { HttpSalesBrainEstimatesService } from "./httpSalesBrainEstimatesService"
+
 export { MockSalesBrainEstimatesService } from "./mockSalesBrainEstimatesService"
+
 export { HttpSalesBrainPricebookService } from "./httpSalesBrainPricebookService"
+
 export { MockSalesBrainPricebookService } from "./mockSalesBrainPricebookService"
 export { HttpSalesBrainOperationsService } from "./httpSalesBrainOperationsService"
 export { MockSalesBrainOperationsService } from "./mockSalesBrainOperationsService"
@@ -22,16 +33,27 @@ export { HttpQuoteEngineService } from "./httpQuoteEngineService"
 export * from "./types"
 
 import { HttpCustomerFilesService } from "./httpCustomerFilesService"
+
 import { MockCustomerFilesService } from "./mockCustomerFilesService"
+
 import { HttpCurrentUserService } from "./httpCurrentUserService"
+
 import { MockCurrentUserService } from "./mockCurrentUserService"
+
 import { HttpSalesBrainEstimatesService } from "./httpSalesBrainEstimatesService"
+
 import { MockSalesBrainEstimatesService } from "./mockSalesBrainEstimatesService"
+
 import { HttpSalesBrainPricebookService } from "./httpSalesBrainPricebookService"
+
 import { MockSalesBrainPricebookService } from "./mockSalesBrainPricebookService"
+
 import type { CustomerFilesService } from "./customerFilesService"
+
 import type { CurrentUserService } from "./currentUserService"
+
 import type { SalesBrainEstimatesService } from "./salesBrainEstimatesService"
+
 import type { SalesBrainPricebookService } from "./salesBrainPricebookService"
 import { HttpSalesBrainOperationsService } from "./httpSalesBrainOperationsService"
 import { MockSalesBrainOperationsService } from "./mockSalesBrainOperationsService"
@@ -64,15 +86,18 @@ import type { QuoteEngineService } from "./quoteEngineService"
  *  - VITE_OPS_BRAIN_BASE_URL="https://ops.holloman-ext.com" (only relevant
  *    in "http" mode; leave unset for same-origin relative requests)
  */
+
 export function createCustomerFilesService(): CustomerFilesService {
   const mode =
     import.meta.env.VITE_CUSTOMER_FILES_MODE ??
     (import.meta.env.PROD ? "http" : "mock")
+
   if (mode === "http") {
     return new HttpCustomerFilesService({
       baseUrl: import.meta.env.VITE_OPS_BRAIN_BASE_URL ?? "",
     })
   }
+
   return new MockCustomerFilesService()
 }
 
@@ -88,16 +113,19 @@ export function createCustomerFilesService(): CustomerFilesService {
  *  - VITE_OPS_BRAIN_BASE_URL (shared with Customer Files; leave unset for
  *    same-origin relative requests)
  */
+
 export function createCurrentUserService(): CurrentUserService {
   const mode =
     import.meta.env.VITE_CURRENT_USER_MODE ??
     import.meta.env.VITE_CUSTOMER_FILES_MODE ??
     (import.meta.env.PROD ? "http" : "mock")
+
   if (mode === "http") {
     return new HttpCurrentUserService({
       baseUrl: import.meta.env.VITE_OPS_BRAIN_BASE_URL ?? "",
     })
   }
+
   return new MockCurrentUserService()
 }
 
@@ -108,37 +136,54 @@ export function createCurrentUserService(): CurrentUserService {
  * VITE_SALES_BRAIN_ESTIMATES_MODE="mock" | "http" can force either adapter.
  * VITE_OPS_BRAIN_BASE_URL is shared with the other Ops Brain HTTP adapters.
  */
+
 export function createSalesBrainEstimatesService(): SalesBrainEstimatesService {
   const mode =
     import.meta.env.VITE_SALES_BRAIN_ESTIMATES_MODE ??
     (import.meta.env.PROD ? "http" : "mock")
+
   if (mode === "http") {
     return new HttpSalesBrainEstimatesService({
       baseUrl: import.meta.env.VITE_OPS_BRAIN_BASE_URL ?? "",
     })
   }
+
   return new MockSalesBrainEstimatesService()
 }
 
 /** Active Pricebook adapter. Production uses the authenticated same-origin API; local development uses preview entries. */
+
 export function createSalesBrainPricebookService(): SalesBrainPricebookService {
   const mode =
     import.meta.env.VITE_SALES_BRAIN_PRICEBOOK_MODE ??
     (import.meta.env.PROD ? "http" : "mock")
+
   if (mode === "http")
     return new HttpSalesBrainPricebookService({
       baseUrl: import.meta.env.VITE_OPS_BRAIN_BASE_URL ?? "",
     })
+
   return new MockSalesBrainPricebookService()
 }
 
 export function createSalesBrainOperationsService(): SalesBrainOperationsService {
-  const mode = import.meta.env.VITE_SALES_BRAIN_OPERATIONS_MODE ?? (import.meta.env.PROD ? "http" : "mock")
-  if (mode === "http") return new HttpSalesBrainOperationsService({ baseUrl: import.meta.env.VITE_OPS_BRAIN_BASE_URL ?? "" })
+  const mode =
+    import.meta.env.VITE_SALES_BRAIN_OPERATIONS_MODE ??
+    (import.meta.env.PROD ? "http" : "mock")
+  if (mode === "http")
+    return new HttpSalesBrainOperationsService({
+      baseUrl: import.meta.env.VITE_OPS_BRAIN_BASE_URL ?? "",
+    })
   return new MockSalesBrainOperationsService()
 }
 
-/** Quote calculations always use OpsBrain; SalesBrain has no browser fallback. */
+/**
+ * Quote calculations have no browser fallback. Even in local development this
+ * adapter calls the configured OpsBrain origin, so SalesBrain never becomes a
+ * competing costing engine.
+ */
 export function createQuoteEngineService(): QuoteEngineService {
-  return new HttpQuoteEngineService({ baseUrl: import.meta.env.VITE_OPS_BRAIN_BASE_URL ?? "" })
+  return new HttpQuoteEngineService({
+    baseUrl: import.meta.env.VITE_OPS_BRAIN_BASE_URL ?? "",
+  })
 }
