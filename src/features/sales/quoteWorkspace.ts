@@ -116,6 +116,7 @@ export function getQuoteWorkspaceReadiness({
   return {
     hasContext,
     hasLines,
+    saveEligible: hasContext && hasLines,
     hasAuthoritativeCalculation,
     calculating,
     ready:

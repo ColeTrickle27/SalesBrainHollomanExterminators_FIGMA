@@ -55,6 +55,18 @@ const contextInput = {
   customLineItems: [],
 }
 
+const emptyInput = {
+  quoteId: "quote-empty",
+  services: [],
+  customLineItems: [],
+}
+
+const customInput = {
+  quoteId: "quote-custom",
+  services: [],
+  customLineItems: [{ lineId: "custom-line", name: "Custom service" }],
+}
+
 const snapshot = {
   version: "opsbrain-quote-engine/v1",
   calculatedAt: "2026-08-28T12:00:00.000Z",
@@ -266,7 +278,8 @@ test("failed photo uploads are excluded from Review's visible photo count", () =
   )
 })
 
-test("saved modern and legacy quotes route by their saved Quote Engine authority", () => {
+test("a saved modern quote with a line reopens in Quote Workspace", () => {
+  assert.equal(contextInput.services.length, 1)
   assert.equal(isQuoteEngineBackedQuote({ quoteEngineSnapshot: snapshot }), true)
   assert.equal(isQuoteEngineBackedQuote({ quoteEngineInput: contextInput }), true)
   assert.equal(isQuoteEngineBackedQuote({}), false)
@@ -331,6 +344,8 @@ test("leadId-only quote context is ready when it has lines and a calculation", (
     calculating: false,
   })
   assert.equal(readiness.hasContext, true)
+  assert.equal(readiness.hasLines, true)
+  assert.equal(readiness.saveEligible, true)
   assert.equal(readiness.ready, true)
 })
 
@@ -345,20 +360,58 @@ test("Bill-To plus Location quote context is valid", () => {
     calculating: false,
   })
   assert.equal(readiness.hasContext, true)
+  assert.equal(readiness.hasLines, true)
+  assert.equal(readiness.saveEligible, true)
   assert.equal(readiness.ready, true)
 })
 
-test("context-free modern quotes cannot add lines or save", () => {
+test("context with zero lines cannot save", () => {
+  const readiness = getQuoteWorkspaceReadiness({
+    inspection: { leadId: "lead-1", quoteEngineInput: emptyInput },
+    calculation: null,
+    calculating: false,
+  })
+  assert.equal(readiness.hasContext, true)
+  assert.equal(readiness.hasLines, false)
+  assert.equal(readiness.saveEligible, false)
+  assert.match(workspaceSource, /!readiness\.saveEligible/)
+  assert.match(
+    workspaceSource,
+    /Add a service or custom item before saving this quote\./,
+  )
+  assert.match(
+    workflowSource,
+    /!quoteEngineInputHasLines\(inspection\.quoteEngineInput\)/,
+  )
+})
+
+test("lines without quote context cannot save", () => {
   const readiness = getQuoteWorkspaceReadiness({
     inspection: { quoteEngineInput: contextInput },
     calculation: snapshot,
     calculating: false,
   })
   assert.equal(readiness.hasContext, false)
+  assert.equal(readiness.hasLines, true)
+  assert.equal(readiness.saveEligible, false)
   assert.equal(readiness.ready, false)
   assert.match(quoteBuilderSource, /disabled=\{!hasQuoteContext \|\| !serviceToAdd\}/)
   assert.match(quoteBuilderSource, /disabled=\{!hasQuoteContext\}/)
-  assert.match(workspaceSource, /!readiness\.hasContext \|\|/)
+  assert.match(
+    workspaceSource,
+    /Select a customer or start from a SalesBrain lead before saving\./,
+  )
+})
+
+test("context with a custom item is save eligible", () => {
+  const readiness = getQuoteWorkspaceReadiness({
+    inspection: { leadId: "lead-1", quoteEngineInput: customInput },
+    calculation: null,
+    calculating: false,
+  })
+  assert.equal(readiness.hasContext, true)
+  assert.equal(readiness.hasLines, true)
+  assert.equal(readiness.saveEligible, true)
 })
 
 test("inspection is optional for calculated quote readiness", () => {

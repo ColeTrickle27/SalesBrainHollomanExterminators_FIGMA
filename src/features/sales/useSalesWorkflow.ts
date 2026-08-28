@@ -844,6 +844,14 @@ export function useSalesWorkflow() {
       return
     }
 
+    if (
+      inspection.quoteEngineInput &&
+      !quoteEngineInputHasLines(inspection.quoteEngineInput)
+    ) {
+      setSaveError("Add a service or custom item before saving this quote.")
+      return
+    }
+
     saveInFlightRef.current = true
 
     setIsSaving(true)

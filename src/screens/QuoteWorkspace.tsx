@@ -161,7 +161,7 @@ export default function QuoteWorkspace(props: QuoteWorkspaceProps) {
             type="button"
             onClick={props.onSave}
             disabled={
-              !readiness.hasContext ||
+              !readiness.saveEligible ||
               props.isSaving ||
               props.quoteEngineCalculating
             }
@@ -173,6 +173,10 @@ export default function QuoteWorkspace(props: QuoteWorkspaceProps) {
           {!readiness.hasContext ? (
             <div className="mt-1.5 text-xs text-amber">
               Select a customer or start from a SalesBrain lead before saving.
+            </div>
+          ) : !readiness.hasLines ? (
+            <div className="mt-1.5 text-xs text-amber">
+              Add a service or custom item before saving this quote.
             </div>
           ) : props.saveError ? (
             <div className="mt-1.5 text-xs text-danger">{props.saveError}</div>

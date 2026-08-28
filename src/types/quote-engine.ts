@@ -193,11 +193,12 @@ export function quoteEngineEditableStateFromSavedSnapshot(
   }
 }
 
-/** Only a user-edited quote may be sent back for a fresh server calculation. */
+/** Only a line-backed new or user-edited quote may request server calculation. */
 export function quoteEngineInputForSave(
   state: QuoteEngineEditableInputState,
   { snapshotBacked = true }: { snapshotBacked?: boolean } = {},
 ) {
+  if (!quoteEngineInputHasLines(state.input)) return undefined
   return state.dirty || !snapshotBacked ? state.input : undefined
 }
 
