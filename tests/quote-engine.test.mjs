@@ -245,6 +245,21 @@ test("a snapshot-backed quote omits reconstructed input until a quote edit is ma
   assert.equal(quoteEngineInputForSave(notesOnly), undefined)
 })
 
+test("a new modern draft preserves its Quote Engine identity before a snapshot exists", () => {
+  const input = {
+    quoteId: "new-modern-draft",
+    services: [],
+    customLineItems: [],
+  }
+  assert.equal(
+    quoteEngineInputForSave(
+      { input, dirty: false },
+      { snapshotBacked: false },
+    ),
+    input,
+  )
+})
+
 test("selling-price and material edits include Quote Engine input on save", () => {
   const restored = quoteEngineInputFromSnapshot(mixedSnapshot)
   const sellingPriceEdited = {

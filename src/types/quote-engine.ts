@@ -196,8 +196,9 @@ export function quoteEngineEditableStateFromSavedSnapshot(
 /** Only a user-edited quote may be sent back for a fresh server calculation. */
 export function quoteEngineInputForSave(
   state: QuoteEngineEditableInputState,
+  { snapshotBacked = true }: { snapshotBacked?: boolean } = {},
 ) {
-  return state.dirty ? state.input : undefined
+  return state.dirty || !snapshotBacked ? state.input : undefined
 }
 
 /**

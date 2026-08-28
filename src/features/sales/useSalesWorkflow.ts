@@ -850,10 +850,13 @@ export function useSalesWorkflow() {
     setSaveError(null)
     try {
       const currentInput = inspection.quoteEngineInput
-      const quoteInputForSave = quoteEngineInputForSave({
-        input: currentInput,
-        dirty: quoteEngineInputDirty,
-      })
+      const quoteInputForSave = quoteEngineInputForSave(
+        {
+          input: currentInput,
+          dirty: quoteEngineInputDirty,
+        },
+        { snapshotBacked: Boolean(inspection.quoteEngineSnapshot) },
+      )
       const estimateForSave = normalizeInspection({
         ...inspection,
         quoteEngineInput: quoteInputForSave
@@ -2477,10 +2480,13 @@ export function useSalesWorkflow() {
     }))
 
     try {
-      const quoteInputForSave = quoteEngineInputForSave({
-        input: inspection.quoteEngineInput,
-        dirty: quoteEngineInputDirty,
-      })
+      const quoteInputForSave = quoteEngineInputForSave(
+        {
+          input: inspection.quoteEngineInput,
+          dirty: quoteEngineInputDirty,
+        },
+        { snapshotBacked: Boolean(inspection.quoteEngineSnapshot) },
+      )
       const saved = await estimatesServiceRef.current!.saveEstimate(
         normalizeInspection({
           ...inspection,
