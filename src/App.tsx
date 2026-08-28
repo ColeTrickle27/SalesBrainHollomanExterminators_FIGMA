@@ -43,6 +43,8 @@ import type { CustomerSearchResult } from "./types/customer"
 
 import { normalizeSalesBrainWorkflowData } from "./types/figma-workflow"
 
+import type { SalesLead } from "./types/sales-operations"
+
 type Screen = "dashboard" | "customer-search" | "wizard" | "job-costing" | "presentation" | "proposal" | "quote-history" | "admin-detail"
 
 const SCREEN_HASH: Record<Screen, string> = {
@@ -133,6 +135,12 @@ export default function App() {
     await workflow.openEstimate(id)
 
     go("wizard")
+  }
+
+  const startQuoteForLead = (lead: SalesLead) => {
+    workflow.startQuoteForLead(lead)
+
+    go("job-costing")
   }
 
   const workflowData = normalizeSalesBrainWorkflowData(
@@ -291,11 +299,12 @@ export default function App() {
             }
             onCreateLead={workflow.createLead}
             onUpdateLead={workflow.updateLead}
+            onStartQuoteForLead={startQuoteForLead}
             onLoadActivities={workflow.loadLeadActivities}
             onAddActivity={workflow.addLeadActivity}
           />
         ) : null}
-        {screen === "wizard" && !workflow.selectedCustomer ? (
+        {screen === "wizard" && !workflow.selectedCustomer && !workflow.inspection.leadId ? (
           <ActiveQuoteLanding
             estimates={workflow.estimates}
             loading={workflow.estimatesLoading}
@@ -304,7 +313,7 @@ export default function App() {
             onDeleteEstimate={workflow.deleteEstimate}
           />
         ) : null}
-        {screen === "wizard" && workflow.selectedCustomer ? (
+        {screen === "wizard" && (workflow.selectedCustomer || workflow.inspection.leadId) ? (
           <InspectionWizard
             inspection={workflow.inspection}
             workflowData={workflowData}

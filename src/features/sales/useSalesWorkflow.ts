@@ -27,8 +27,10 @@ import type { SalesInspection } from "../../types/sales-inspection"
 import {
   createEmptyQuoteEngineInput,
   customerPricingSnapshotFromQuoteEngine,
+  hasQuoteEngineQuoteContext,
   initializeQuoteEngineInputFromRecommendation,
-  quoteEngineInputFromSnapshot,
+  quoteEngineEditableStateFromSavedSnapshot,
+  quoteEngineInputForSave,
   quoteEngineInputHasLines,
   type QuoteEngineInput,
   type QuoteEngineSnapshot,
@@ -62,6 +64,7 @@ import type {
   SalesDocumentType,
   SalesEmployeeProfile,
   SalesGeneratedDocument,
+  SalesLead,
   SalesServicePackage,
   SalesServicePackageInput,
   SalesSignatureRequest,
@@ -222,11 +225,6 @@ function normalizeInspection(inspection: SalesInspection): SalesInspection {
   return reconcileInspection({
     ...inspection,
     workflowData: normalizeSalesBrainWorkflowData(inspection.workflowData),
-    quoteEngineInput:
-      inspection.quoteEngineInput ??
-      (inspection.quoteEngineSnapshot
-        ? quoteEngineInputFromSnapshot(inspection.quoteEngineSnapshot)
-        : undefined),
   })
 }
 
@@ -485,6 +483,7 @@ export function useSalesWorkflow() {
     useState<string | null>(null)
   const [quoteEngineCalculationRevision, setQuoteEngineCalculationRevision] =
     useState(0)
+  const [quoteEngineInputDirty, setQuoteEngineInputDirty] = useState(false)
   const [restoringEstimate, setRestoringEstimate] = useState(false)
 
   const [pricebookServices, setPricebookServices] =
@@ -682,7 +681,18 @@ export function useSalesWorkflow() {
         if (cancelled) return
 
         if (savedInspection) {
-          setInspection(normalizeInspection(savedInspection))
+          const savedEditableState = quoteEngineEditableStateFromSavedSnapshot(
+            savedInspection.quoteEngineSnapshot,
+            savedInspection.quoteEngineInput,
+          )
+          setInspection(
+            normalizeInspection({
+              ...savedInspection,
+              quoteEngineInput: savedEditableState.input,
+            }),
+          )
+          setQuoteEngineCalculation(savedInspection.quoteEngineSnapshot ?? null)
+          setQuoteEngineInputDirty(savedEditableState.dirty)
 
           setSavedAt(null)
 
@@ -824,17 +834,28 @@ export function useSalesWorkflow() {
   const saveEstimate = async () => {
     if (saveInFlightRef.current) return
 
+    if (!hasQuoteEngineQuoteContext(quoteEngineContextFor(inspection, currentUser))) {
+      setSaveError(
+        "Select an existing customer or start a SalesBrain lead quote before saving.",
+      )
+      return
+    }
+
     saveInFlightRef.current = true
 
     setIsSaving(true)
     setSaveError(null)
     try {
       const currentInput = inspection.quoteEngineInput
+      const quoteInputForSave = quoteEngineInputForSave({
+        input: currentInput,
+        dirty: quoteEngineInputDirty,
+      })
       const estimateForSave = normalizeInspection({
         ...inspection,
-        quoteEngineInput: quoteEngineInputHasLines(currentInput)
+        quoteEngineInput: quoteInputForSave
           ? quoteEngineInputWithCurrentContext(
-              currentInput!,
+              quoteInputForSave,
               inspection,
               currentUser,
             )
@@ -842,15 +863,18 @@ export function useSalesWorkflow() {
       })
       const savedInspection =
         await estimatesServiceRef.current!.saveEstimate(estimateForSave)
+      const savedEditableState = quoteEngineEditableStateFromSavedSnapshot(
+        savedInspection.quoteEngineSnapshot,
+        savedInspection.quoteEngineInput ?? currentInput,
+      )
       setInspection(
         normalizeInspection({
           ...savedInspection,
-          quoteEngineInput:
-            savedInspection.quoteEngineInput ??
-            (quoteEngineInputHasLines(currentInput) ? currentInput : undefined),
+          quoteEngineInput: savedEditableState.input,
         }),
       )
       setQuoteEngineCalculation(savedInspection.quoteEngineSnapshot ?? null)
+      setQuoteEngineInputDirty(savedEditableState.dirty)
       writeLastOpenEstimateId(savedInspection.id)
 
       setSavedAt(savedInspection.updatedAt)
@@ -1004,11 +1028,21 @@ export function useSalesWorkflow() {
         return
       }
 
-      setInspection(normalizeInspection(savedInspection))
+      const savedEditableState = quoteEngineEditableStateFromSavedSnapshot(
+        savedInspection.quoteEngineSnapshot,
+        savedInspection.quoteEngineInput,
+      )
+      setInspection(
+        normalizeInspection({
+          ...savedInspection,
+          quoteEngineInput: savedEditableState.input,
+        }),
+      )
       setQuoteEngineCalculation(savedInspection.quoteEngineSnapshot ?? null)
       setQuoteEngineCalculationError(null)
       setQuoteEngineCalculating(false)
       setQuoteEngineCalculationRevision(0)
+      setQuoteEngineInputDirty(savedEditableState.dirty)
       writeLastOpenEstimateId(savedInspection.id)
 
       setSavedAt(null)
@@ -1057,6 +1091,7 @@ export function useSalesWorkflow() {
     setQuoteEngineCalculationError(null)
     setQuoteEngineCalculating(false)
     setQuoteEngineCalculationRevision(0)
+    setQuoteEngineInputDirty(false)
     setShowReport(false)
 
     setBugmanGraphsOpen(false)
@@ -1070,22 +1105,80 @@ export function useSalesWorkflow() {
     setCustomerSearchOpen(false)
   }
 
+  const startQuoteForLead = (lead: SalesLead) => {
+    const freshInspection = createEmptySalesInspection(
+      currentUser?.username ?? "unassigned",
+    )
+    const freshWorkflowData = normalizeSalesBrainWorkflowData(
+      freshInspection.workflowData,
+    )
+    const leadInspection = reconcileInspection({
+      ...freshInspection,
+      leadId: lead.id,
+      workflowData: normalizeSalesBrainWorkflowData({
+        ...freshWorkflowData,
+        customer: {
+          ...freshWorkflowData.customer,
+          leadType: lead.leadType,
+          company: lead.company || lead.companyName,
+          first: lead.first,
+          last: lead.last,
+          phone: lead.phone,
+          email: lead.email,
+          preferredContact: lead.preferredContact,
+          referralSource: lead.referralSource,
+          referralSourceOther: lead.referralSourceOther,
+          locationName: lead.locationName,
+          streetAddress: lead.streetAddress,
+          city: lead.city,
+          state: "NC",
+          zip: lead.zip,
+          accountNotes: lead.notes,
+        },
+      }),
+      quoteEngineInput: createEmptyQuoteEngineInput({
+        ...quoteEngineContextFor(freshInspection, currentUser),
+        leadId: lead.id,
+      }),
+    })
+
+    setInspection(leadInspection)
+    writeLastOpenEstimateId(leadInspection.id)
+    setSavedAt(null)
+    setSaveError(null)
+    setQuoteEngineCalculation(null)
+    setQuoteEngineCalculationError(null)
+    setQuoteEngineCalculating(false)
+    setQuoteEngineCalculationRevision(0)
+    setQuoteEngineInputDirty(false)
+    setShowReport(false)
+    setBugmanGraphsOpen(false)
+    setBugmanGraphChoiceOpen(false)
+    setBugmanGraphPickerOpen(false)
+    setWorkspaceGraphKey(null)
+    setCustomerSearchOpen(false)
+    setActiveNavItem("Estimate builder")
+  }
+
   /** Selecting a different Bill-To/Location clears every downstream domain
    * value that belongs to the previous property while retaining the prior
    * behavior of leaving photos untouched until an explicit New Estimate. */
 
   const selectCustomer = (customer: CustomerSearchResult) => {
-    updateInspection((previous) => {
-      const selected = selectedCustomerFor(previous)
+    const selected = selectedCustomerFor(inspection)
+    const customerChanged =
+      selected === null ||
+      selected.billTo.billToNumber !== customer.billTo.billToNumber ||
+      selected.location.locationNumber !== customer.location.locationNumber
 
-      const changed =
-        selected === null ||
-        selected.billTo.billToNumber !== customer.billTo.billToNumber ||
-        selected.location.locationNumber !== customer.location.locationNumber
+    updateInspection((previous) => {
+      const changed = customerChanged
 
       if (!changed)
         return {
           ...previous,
+
+          leadId: undefined,
 
           billTo: customer.billTo,
 
@@ -1119,10 +1212,11 @@ export function useSalesWorkflow() {
           quoteEngineInput: previous.quoteEngineInput
             ? quoteEngineInputWithCurrentContext(
                 previous.quoteEngineInput,
-                {
-                  ...previous,
-                  billTo: customer.billTo,
-                  location: customer.location,
+              {
+                ...previous,
+                leadId: undefined,
+                billTo: customer.billTo,
+                location: customer.location,
                 },
                 currentUser,
               )
@@ -1133,6 +1227,8 @@ export function useSalesWorkflow() {
 
       return {
         ...previous,
+
+        leadId: undefined,
 
         billTo: customer.billTo,
 
@@ -1174,20 +1270,31 @@ export function useSalesWorkflow() {
         selectedRecommendationId: undefined,
 
         pricingSnapshot: undefined,
-        quoteEngineInput: previous.quoteEngineInput
-          ? quoteEngineInputWithCurrentContext(
-              previous.quoteEngineInput,
-              {
-                ...previous,
-                billTo: customer.billTo,
-                location: customer.location,
-              },
-              currentUser,
-            )
-          : undefined,
+        quoteNotes: undefined,
+        quoteEngineInput: createEmptyQuoteEngineInput(
+          quoteEngineContextFor(
+            {
+              ...previous,
+              leadId: undefined,
+              billTo: customer.billTo,
+              location: customer.location,
+            },
+            currentUser,
+          ),
+        ),
+        quoteEngineSnapshot: undefined,
         reportBuiltAt: undefined,
       }
     })
+
+    if (customerChanged) {
+      quoteEngineRequestIdRef.current += 1
+      setQuoteEngineCalculation(null)
+      setQuoteEngineCalculationError(null)
+      setQuoteEngineCalculating(false)
+      setQuoteEngineCalculationRevision(0)
+      setQuoteEngineInputDirty(false)
+    }
 
     setShowReport(false)
 
@@ -1918,7 +2025,20 @@ export function useSalesWorkflow() {
         inspection.id,
       )
 
-      if (refreshed) setInspection(normalizeInspection(refreshed))
+      if (refreshed) {
+        const savedEditableState = quoteEngineEditableStateFromSavedSnapshot(
+          refreshed.quoteEngineSnapshot,
+          refreshed.quoteEngineInput,
+        )
+        setInspection(
+          normalizeInspection({
+            ...refreshed,
+            quoteEngineInput: savedEditableState.input,
+          }),
+        )
+        setQuoteEngineCalculation(refreshed.quoteEngineSnapshot ?? null)
+        setQuoteEngineInputDirty(savedEditableState.dirty)
+      }
 
       await Promise.all([loadEstimates(), refreshOperations()])
 
@@ -2229,6 +2349,7 @@ export function useSalesWorkflow() {
         ),
       }
     })
+    setQuoteEngineInputDirty(true)
     setQuoteEngineCalculation(null)
     setQuoteEngineCalculationError(null)
     setQuoteEngineCalculationRevision((revision) => revision + 1)
@@ -2243,7 +2364,13 @@ export function useSalesWorkflow() {
     const service = selected
       ? pricebookServices.find((item) => item.id === selected.id && item.active)
       : undefined
-    if (!service || quoteEngineInputHasLines(inspection.quoteEngineInput))
+    if (
+      !service ||
+      !hasQuoteEngineQuoteContext(
+        quoteEngineContextFor(inspection, currentUser),
+      ) ||
+      quoteEngineInputHasLines(inspection.quoteEngineInput)
+    )
       return
     const initialized = initializeQuoteEngineInputFromRecommendation(
       inspection.quoteEngineInput,
@@ -2256,6 +2383,7 @@ export function useSalesWorkflow() {
         ? current
         : { ...current, quoteEngineInput: initialized },
     )
+    setQuoteEngineInputDirty(true)
     setQuoteEngineCalculation(null)
     setQuoteEngineCalculationError(null)
     setQuoteEngineCalculationRevision((revision) => revision + 1)
@@ -2275,6 +2403,9 @@ export function useSalesWorkflow() {
   useEffect(() => {
     if (
       quoteEngineCalculationRevision === 0 ||
+      !hasQuoteEngineQuoteContext(
+        quoteEngineContextFor(inspection, currentUser),
+      ) ||
       !quoteEngineInputHasLines(inspection.quoteEngineInput)
     ) {
       return
@@ -2330,6 +2461,13 @@ export function useSalesWorkflow() {
   ])
 
   const setEstimateStatus = async (status: SalesInspection["status"]) => {
+    if (!hasQuoteEngineQuoteContext(quoteEngineContextFor(inspection, currentUser))) {
+      setSaveError(
+        "Select an existing customer or start a SalesBrain lead quote before updating quote status.",
+      )
+      return
+    }
+
     const now = new Date().toISOString()
 
     updateInspection((current) => ({
@@ -2345,9 +2483,21 @@ export function useSalesWorkflow() {
     }))
 
     try {
+      const quoteInputForSave = quoteEngineInputForSave({
+        input: inspection.quoteEngineInput,
+        dirty: quoteEngineInputDirty,
+      })
       const saved = await estimatesServiceRef.current!.saveEstimate(
         normalizeInspection({
           ...inspection,
+
+          quoteEngineInput: quoteInputForSave
+            ? quoteEngineInputWithCurrentContext(
+                quoteInputForSave,
+                inspection,
+                currentUser,
+              )
+            : undefined,
 
           status,
 
@@ -2361,7 +2511,18 @@ export function useSalesWorkflow() {
         }),
       )
 
-      setInspection(normalizeInspection(saved))
+      const savedEditableState = quoteEngineEditableStateFromSavedSnapshot(
+        saved.quoteEngineSnapshot,
+        saved.quoteEngineInput ?? inspection.quoteEngineInput,
+      )
+      setInspection(
+        normalizeInspection({
+          ...saved,
+          quoteEngineInput: savedEditableState.input,
+        }),
+      )
+      setQuoteEngineCalculation(saved.quoteEngineSnapshot ?? null)
+      setQuoteEngineInputDirty(savedEditableState.dirty)
 
       await Promise.all([loadEstimates(), refreshOperations()])
     } catch (error) {
@@ -2689,6 +2850,7 @@ export function useSalesWorkflow() {
     stepSummaries,
 
     startNewEstimate,
+    startQuoteForLead,
 
     updateWorkflowData,
     updateQuoteNotes,
