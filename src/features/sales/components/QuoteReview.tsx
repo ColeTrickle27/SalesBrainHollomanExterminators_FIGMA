@@ -31,7 +31,8 @@ export function QuoteReview({
     calculating,
   })
   const visiblePhotos = inspection.photos.filter(
-    (photo) => photo.customerVisible !== false,
+    (photo) =>
+      photo.customerVisible !== false && photo.uploadStatus !== "error",
   ).length
   const activeFindings = inspection.findings.filter(
     (finding) => !finding.hidden,

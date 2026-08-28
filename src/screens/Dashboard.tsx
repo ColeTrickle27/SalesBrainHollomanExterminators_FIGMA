@@ -137,8 +137,12 @@ const EMPTY_LEAD: LeadInput = {
   status: "open", notes: "", nextFollowUpAt: "",
 }
 
-function LeadForm({ onClose, onSave }: { onClose: () => void; onSave: (input: LeadInput) => Promise<void> }) {
-  const [form, setForm] = useState(EMPTY_LEAD)
+export function LeadEditModal({ lead, onClose, onSave }: { lead: SalesLead; onClose: () => void; onSave: (input: LeadInput) => Promise<void> }) {
+  return <LeadForm title="Edit Lead" initial={leadInputFromLead(lead)} showStatus showCancel onClose={onClose} onSave={onSave} />
+}
+
+function LeadForm({ onClose, onSave, initial = EMPTY_LEAD, title = "New Lead", showStatus = false, showCancel = false }: { onClose: () => void; onSave: (input: LeadInput) => Promise<void>; initial?: LeadInput; title?: string; showStatus?: boolean; showCancel?: boolean }) {
+  const [form, setForm] = useState(() => ({ ...initial }))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
   const save = async () => {
@@ -148,7 +152,7 @@ function LeadForm({ onClose, onSave }: { onClose: () => void; onSave: (input: Le
     try { await onSave({ ...form, companyName: form.company.trim(), customerName, state: "NC" }) }
     catch (value) { setError(value instanceof Error ? value.message : "Unable to save lead."); setSaving(false) }
   }
-  return <Modal title="New Lead" onClose={onClose}><div className="space-y-4">
+  return <Modal title={title} onClose={onClose}><div className="space-y-4">
     <Choice label="Lead Type" options={LEAD_TYPE_OPTIONS} value={form.leadType} onChange={(value) => setForm({ ...form, leadType: value as LeadInput["leadType"] })} />
     <div className="grid sm:grid-cols-3 gap-3"><Field label="Company" value={form.company} onChange={(value) => setForm({ ...form, company: value, companyName: value })} /><Field label="First" value={form.first} onChange={(value) => setForm({ ...form, first: value })} /><Field label="Last" value={form.last} onChange={(value) => setForm({ ...form, last: value })} /></div>
     <div className="grid sm:grid-cols-2 gap-3"><Field label="Phone" value={form.phone} onChange={(value) => setForm({ ...form, phone: value })} /><Field label="Email" value={form.email} onChange={(value) => setForm({ ...form, email: value })} /></div>
@@ -157,10 +161,38 @@ function LeadForm({ onClose, onSave }: { onClose: () => void; onSave: (input: Le
     {form.referralSource === "Other" ? <Field label="Other Referral Source" value={form.referralSourceOther} onChange={(value) => setForm({ ...form, referralSourceOther: value })} /> : null}
     <div className="border-t border-surface pt-3"><div className="font-display text-base font-bold text-brand-dark uppercase mb-3">Service Location</div><div className="space-y-3"><Field label="Location Name" value={form.locationName} onChange={(value) => setForm({ ...form, locationName: value })} /><Field label="Street Address" value={form.streetAddress} onChange={(value) => setForm({ ...form, streetAddress: value })} /><div className="grid grid-cols-[1fr_80px_110px] gap-3"><Field label="City" value={form.city} onChange={(value) => setForm({ ...form, city: value })} /><Field label="State" value="NC" onChange={() => undefined} disabled /><Field label="ZIP" value={form.zip} onChange={(value) => setForm({ ...form, zip: value })} /></div></div></div>
     <Choice label="Lead Temperature" options={["hot", "warm", "cold"]} value={form.temperature} onChange={(value) => setForm({ ...form, temperature: value as LeadInput["temperature"] })} />
+    {showStatus ? <Choice label="Lead Status" options={["open", "sold", "lost"]} value={form.status} onChange={(value) => setForm({ ...form, status: value as LeadInput["status"] })} /> : null}
     <Field label="Next Follow-Up" type="datetime-local" value={form.nextFollowUpAt || ""} onChange={(value) => setForm({ ...form, nextFollowUpAt: value })} />
     <label className="block text-xs font-semibold text-steel">Notes<textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} rows={3} className="mt-1 w-full border border-surface rounded-xl px-3 py-2 text-sm" /></label>
-    {error ? <div className="text-sm text-danger">{error}</div> : null}<button onClick={() => void save()} disabled={saving} className="w-full bg-brand-red text-white rounded-xl py-3 font-display text-lg font-bold uppercase disabled:opacity-50">{saving ? "Saving..." : "Save Lead"}</button>
+    {error ? <div className="text-sm text-danger">{error}</div> : null}<div className={showCancel ? "grid grid-cols-2 gap-2" : "grid"}>{showCancel ? <button type="button" onClick={onClose} disabled={saving} className="w-full border border-surface text-brand-dark rounded-xl py-3 font-bold disabled:opacity-50">Cancel</button> : null}<button onClick={() => void save()} disabled={saving} className="w-full bg-brand-red text-white rounded-xl py-3 font-display text-lg font-bold uppercase disabled:opacity-50">{saving ? "Saving..." : "Save Lead"}</button></div>
   </div></Modal>
+}
+
+function leadInputFromLead(lead: SalesLead): LeadInput {
+  return {
+    leadType: lead.leadType,
+    customerName: lead.customerName,
+    company: lead.company,
+    first: lead.first,
+    last: lead.last,
+    locationName: lead.locationName,
+    streetAddress: lead.streetAddress,
+    city: lead.city,
+    state: lead.state,
+    zip: lead.zip,
+    companyName: lead.companyName,
+    phone: lead.phone,
+    email: lead.email,
+    preferredContact: lead.preferredContact,
+    referralSource: lead.referralSource,
+    referralSourceOther: lead.referralSourceOther,
+    temperature: lead.temperature,
+    status: lead.status,
+    notes: lead.notes,
+    billToNumber: lead.billToNumber,
+    locationNumber: lead.locationNumber,
+    nextFollowUpAt: lead.nextFollowUpAt,
+  }
 }
 
 function LeadDetail({ lead, activities, onClose, onUpdate, onStartQuote, onAddActivity }: { lead: SalesLead; activities: LeadActivity[]; onClose: () => void; onUpdate: (input: Partial<LeadInput>) => Promise<void>; onStartQuote: () => void; onAddActivity: (input: Pick<LeadActivity, "type" | "note" | "happenedAt" | "quoteId">) => Promise<void> }) {

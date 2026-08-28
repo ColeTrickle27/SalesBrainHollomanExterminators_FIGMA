@@ -17,10 +17,12 @@ import {
 } from "./JobCosting"
 import { QuoteCustomerSummary } from "../features/sales/components/QuoteCustomerSummary"
 import { QuoteReview } from "../features/sales/components/QuoteReview"
+import { LeadEditModal } from "./Dashboard"
 import {
   getQuoteWorkspaceReadiness,
   quoteWorkspaceCustomerIdentity,
 } from "../features/sales/quoteWorkspace"
+import type { LeadInput, SalesLead } from "../types/sales-operations"
 
 const WORKSPACE_SECTIONS = [
   { id: "customer", label: "Customer", icon: UserRound },
@@ -35,11 +37,13 @@ export interface QuoteWorkspaceProps
   extends QuoteBuilderPanelProps,
     QuoteInspectionProps {
   onChangeCustomer: () => void
-  onEditLead: () => void
+  lead: SalesLead | null
+  onUpdateLead: (input: LeadInput) => Promise<SalesLead>
 }
 
 export default function QuoteWorkspace(props: QuoteWorkspaceProps) {
   const [section, setSection] = useState<WorkspaceSection>("quote")
+  const [leadEditorOpen, setLeadEditorOpen] = useState(false)
   const readiness = getQuoteWorkspaceReadiness({
     inspection: props.inspection,
     calculation: props.quoteEngineCalculation,
@@ -132,7 +136,7 @@ export default function QuoteWorkspace(props: QuoteWorkspaceProps) {
           inspection={props.inspection}
           workflowData={props.workflowData}
           onChangeCustomer={props.onChangeCustomer}
-          onEditLead={props.onEditLead}
+          onEditLead={() => setLeadEditorOpen(true)}
         />
       ) : null}
 
@@ -175,6 +179,16 @@ export default function QuoteWorkspace(props: QuoteWorkspaceProps) {
           ) : null}
         </div>
       </div>
+      {leadEditorOpen && props.lead ? (
+        <LeadEditModal
+          lead={props.lead}
+          onClose={() => setLeadEditorOpen(false)}
+          onSave={async (input) => {
+            await props.onUpdateLead(input)
+            setLeadEditorOpen(false)
+          }}
+        />
+      ) : null}
     </div>
   )
 }

@@ -46,14 +46,17 @@ export function QuoteCustomerSummary({
           onClick={inspection.leadId ? onEditLead : onChangeCustomer}
           className="rounded-xl border border-surface px-4 py-2.5 text-sm font-bold text-brand-dark hover:bg-surface"
         >
-          {inspection.leadId ? "Edit Lead from Home" : "Change Customer"}
+          {inspection.leadId
+            ? "Edit Lead"
+            : inspection.billTo && inspection.location
+              ? "Change Customer"
+              : "Select Customer"}
         </button>
       </div>
       {inspection.billTo && inspection.location ? (
         <p className="mt-4 border-t border-surface pt-3 text-xs text-steel">
-          Permanent customer identity remains linked to this Bill-To and
-          Location. Changing it uses the existing customer search and safely
-          resets property-specific quote data when the location changes.
+          Changing to a different customer or location will clear quote details
+          tied to the current property.
         </p>
       ) : null}
     </section>

@@ -37,7 +37,12 @@ import QuoteHistory from "./screens/QuoteHistory"
 
 import QuoteWorkspace from "./screens/QuoteWorkspace"
 
-import { isQuoteEngineBackedQuote } from "./features/sales/quoteWorkspace"
+import {
+  isQuoteEngineBackedQuote,
+  resolveQuoteWorkspaceRoute,
+  shouldRenderQuoteWorkspace,
+  type QuoteWorkspaceRoute,
+} from "./features/sales/quoteWorkspace"
 
 import type { CustomerSearchResult } from "./types/customer"
 
@@ -161,15 +166,37 @@ export default function App() {
   )
 
   const modernQuoteActive = isQuoteEngineBackedQuote(workflow.inspection)
-  const legacyRouteRequested =
+  const quoteRoute: QuoteWorkspaceRoute | null =
+    screen === "quote-workspace" ||
     screen === "wizard" ||
     screen === "job-costing" ||
     screen === "presentation" ||
     screen === "proposal"
+      ? screen
+      : null
+  const quoteRouteRedirect = quoteRoute
+    ? resolveQuoteWorkspaceRoute({
+        route: quoteRoute,
+        restoringEstimate: workflow.restoringEstimate,
+        modernQuote: modernQuoteActive,
+      })
+    : null
+  const renderQuoteWorkspace = quoteRoute
+    ? shouldRenderQuoteWorkspace({
+        route: quoteRoute,
+        restoringEstimate: workflow.restoringEstimate,
+        modernQuote: modernQuoteActive,
+      })
+    : false
+  const activeQuoteLead = workflow.inspection.leadId
+    ? workflow.dashboardData?.leads.find(
+        (lead) => lead.id === workflow.inspection.leadId,
+      ) ?? null
+    : null
 
   useEffect(() => {
-    if (modernQuoteActive && legacyRouteRequested) go("quote-workspace")
-  }, [legacyRouteRequested, modernQuoteActive])
+    if (quoteRouteRedirect) go(quoteRouteRedirect)
+  }, [quoteRouteRedirect])
 
   const initials = useMemo(() => {
     const name = workflow.currentUser?.name || ""
@@ -193,7 +220,11 @@ export default function App() {
       />
     )
 
-  if (screen === "presentation" && !modernQuoteActive)
+  if (
+    !workflow.restoringEstimate &&
+    screen === "presentation" &&
+    !modernQuoteActive
+  )
     return (
       <CustomerPresentation
         inspection={workflow.inspection}
@@ -209,7 +240,11 @@ export default function App() {
       />
     )
 
-  if (screen === "proposal" && !modernQuoteActive)
+  if (
+    !workflow.restoringEstimate &&
+    screen === "proposal" &&
+    !modernQuoteActive
+  )
     return (
       <ProposalPreview
         inspection={workflow.inspection}
@@ -330,7 +365,9 @@ export default function App() {
             onAddActivity={workflow.addLeadActivity}
           />
         ) : null}
-        {screen === "wizard" && !modernQuoteActive ? (
+        {!workflow.restoringEstimate &&
+        screen === "wizard" &&
+        !modernQuoteActive ? (
           <InspectionWizard
             inspection={workflow.inspection}
             workflowData={workflowData}
@@ -388,8 +425,7 @@ export default function App() {
             onSavePestPacHandoff={workflow.savePestPacHandoffRecord}
           />
         ) : null}
-        {screen === "quote-workspace" ||
-        (modernQuoteActive && legacyRouteRequested) ? (
+        {renderQuoteWorkspace ? (
           <QuoteWorkspace
             inspection={workflow.inspection}
             workflowData={workflowData}
@@ -419,10 +455,13 @@ export default function App() {
             onQuoteEngineInputChange={workflow.updateQuoteEngineInput}
             onSave={() => void workflow.saveEstimate()}
             onChangeCustomer={changeCustomer}
-            onEditLead={() => go("dashboard")}
+            lead={activeQuoteLead}
+            onUpdateLead={workflow.updateActiveQuoteLead}
           />
         ) : null}
-        {screen === "job-costing" && !modernQuoteActive ? (
+        {!workflow.restoringEstimate &&
+        screen === "job-costing" &&
+        !modernQuoteActive ? (
           <JobCosting
             inspection={workflow.inspection}
             workflowData={workflowData}

@@ -5,7 +5,10 @@ import test from "node:test"
 import {
   getQuoteWorkspaceReadiness,
   isQuoteEngineBackedQuote,
+  quoteInspectionWithUpdatedLead,
   quoteWorkspaceCustomerFacingReview,
+  resolveQuoteWorkspaceRoute,
+  shouldRenderQuoteWorkspace,
 } from "../src/features/sales/quoteWorkspace.ts"
 import {
   quoteEngineEditableStateFromSavedSnapshot,
@@ -20,6 +23,13 @@ const workspaceSource = readFileSync(
 )
 const reviewSource = readFileSync(
   new URL("../src/features/sales/components/QuoteReview.tsx", import.meta.url),
+  "utf8",
+)
+const customerSummarySource = readFileSync(
+  new URL(
+    "../src/features/sales/components/QuoteCustomerSummary.tsx",
+    import.meta.url,
+  ),
   "utf8",
 )
 const quoteBuilderSource = readFileSync(
@@ -90,6 +100,33 @@ const snapshot = {
   catalogReferences: [{ lineId: "custom-1", custom: true }],
 }
 
+const lead = {
+  id: "lead-1",
+  leadType: "New Customer",
+  customerName: "Jamie Preview",
+  company: "",
+  companyName: "",
+  first: "Jamie",
+  last: "Preview",
+  locationName: "Preview location",
+  streetAddress: "123 Preview Street",
+  city: "Raleigh",
+  state: "NC",
+  zip: "27601",
+  phone: "919-555-0100",
+  email: "jamie@example.test",
+  preferredContact: "Text",
+  referralSource: "Website",
+  referralSourceOther: "",
+  temperature: "warm",
+  status: "open",
+  notes: "Preview lead",
+  nextFollowUpAt: "",
+  createdBy: "preview",
+  createdAt: "2026-08-28T12:00:00.000Z",
+  updatedAt: "2026-08-28T12:00:00.000Z",
+}
+
 test("New Quote customer selection enters Quote Workspace", () => {
   assert.match(
     appSource,
@@ -102,6 +139,130 @@ test("Lead Detail Start Quote enters the same Quote Workspace", () => {
   assert.match(
     appSource,
     /const startQuoteForLead[\s\S]*workflow\.startQuoteForLead\(lead\)[\s\S]*go\("quote-workspace"\)/,
+  )
+})
+
+test("lead editing stays in the active workspace and preserves quote identity", () => {
+  const inspection = {
+    id: "quote-1",
+    leadId: lead.id,
+    workflowData: { customer: {} },
+  }
+  const updated = quoteInspectionWithUpdatedLead(inspection, {
+    ...lead,
+    phone: "919-555-0199",
+  })
+
+  assert.equal(updated.id, inspection.id)
+  assert.equal(updated.leadId, inspection.leadId)
+  assert.equal(updated.workflowData.customer.phone, "919-555-0199")
+  assert.match(workspaceSource, /<LeadEditModal/)
+  assert.match(dashboardSource, /title="Edit Lead"[\s\S]*showCancel/)
+  assert.match(workflowSource, /updateActiveQuoteLead/)
+  assert.doesNotMatch(appSource, /onEditLead=\{\(\) => go\("dashboard"\)\}/)
+})
+
+test("quote routing waits for restore and then redirects modern deprecated URLs", () => {
+  for (const route of ["job-costing", "wizard", "presentation", "proposal"]) {
+    assert.equal(
+      resolveQuoteWorkspaceRoute({
+        route,
+        restoringEstimate: true,
+        modernQuote: true,
+      }),
+      null,
+    )
+    assert.equal(
+      resolveQuoteWorkspaceRoute({
+        route,
+        restoringEstimate: false,
+        modernQuote: true,
+      }),
+      "quote-workspace",
+    )
+  }
+})
+
+test("modern saved quote refresh renders the workspace after restore", () => {
+  assert.equal(
+    shouldRenderQuoteWorkspace({
+      route: "quote-workspace",
+      restoringEstimate: true,
+      modernQuote: true,
+    }),
+    false,
+  )
+  assert.equal(
+    shouldRenderQuoteWorkspace({
+      route: "quote-workspace",
+      restoringEstimate: false,
+      modernQuote: true,
+    }),
+    true,
+  )
+})
+
+test("legacy saved quote refresh stays on Job Costing", () => {
+  assert.equal(
+    resolveQuoteWorkspaceRoute({
+      route: "job-costing",
+      restoringEstimate: false,
+      modernQuote: false,
+    }),
+    null,
+  )
+  assert.equal(
+    shouldRenderQuoteWorkspace({
+      route: "job-costing",
+      restoringEstimate: false,
+      modernQuote: false,
+    }),
+    false,
+  )
+})
+
+test("direct Quote Workspace cannot render a restored legacy quote", () => {
+  assert.equal(
+    resolveQuoteWorkspaceRoute({
+      route: "quote-workspace",
+      restoringEstimate: false,
+      modernQuote: false,
+    }),
+    "job-costing",
+  )
+  assert.equal(
+    shouldRenderQuoteWorkspace({
+      route: "quote-workspace",
+      restoringEstimate: false,
+      modernQuote: false,
+    }),
+    false,
+  )
+})
+
+test("restored and explicitly reopened quotes use the persisted save time", () => {
+  assert.ok(
+    (workflowSource.match(/setSavedAt\(savedInspection\.updatedAt\)/g) || [])
+      .length >= 2,
+  )
+  assert.match(workspaceSource, /Not saved yet/)
+})
+
+test("customer summary uses employee-facing context actions and warning", () => {
+  assert.match(customerSummarySource, /"Edit Lead"/)
+  assert.match(customerSummarySource, /"Change Customer"/)
+  assert.match(customerSummarySource, /"Select Customer"/)
+  assert.match(
+    customerSummarySource,
+    /Changing to a different customer or location will clear quote details/,
+  )
+  assert.doesNotMatch(customerSummarySource, /Permanent customer identity/)
+})
+
+test("failed photo uploads are excluded from Review's visible photo count", () => {
+  assert.match(
+    reviewSource,
+    /photo\.customerVisible !== false && photo\.uploadStatus !== "error"/,
   )
 })
 
@@ -152,7 +313,14 @@ test("legacy quote options cannot participate in modern Review pricing", () => {
     workspaceSource + reviewSource,
     /quoteOptions|Chocolate|Vanilla|Customer Specified/,
   )
-  assert.match(appSource, /screen === "presentation" && !modernQuoteActive/)
+  assert.equal(
+    resolveQuoteWorkspaceRoute({
+      route: "presentation",
+      restoringEstimate: false,
+      modernQuote: true,
+    }),
+    "quote-workspace",
+  )
   assert.doesNotMatch(reviewSource, /pricebookServices\.map|calculatedPrice/)
 })
 
