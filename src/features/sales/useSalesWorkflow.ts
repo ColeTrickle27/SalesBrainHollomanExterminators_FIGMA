@@ -69,6 +69,7 @@ import type {
   SalesServicePackageInput,
   SalesSignatureRequest,
 } from "../../types/sales-operations"
+import { quoteInspectionWithUpdatedLead } from "./quoteWorkspace"
 
 interface PendingPhotoFile {
   file: File
@@ -484,7 +485,9 @@ export function useSalesWorkflow() {
   const [quoteEngineCalculationRevision, setQuoteEngineCalculationRevision] =
     useState(0)
   const [quoteEngineInputDirty, setQuoteEngineInputDirty] = useState(false)
-  const [restoringEstimate, setRestoringEstimate] = useState(false)
+  const [restoringEstimate, setRestoringEstimate] = useState(() =>
+    Boolean(readLastOpenEstimateId()),
+  )
 
   const [pricebookServices, setPricebookServices] =
     useState<PricebookService[]>([])
@@ -694,7 +697,7 @@ export function useSalesWorkflow() {
           setQuoteEngineCalculation(savedInspection.quoteEngineSnapshot ?? null)
           setQuoteEngineInputDirty(savedEditableState.dirty)
 
-          setSavedAt(null)
+          setSavedAt(savedInspection.updatedAt)
 
           setSaveError(null)
 
@@ -841,16 +844,27 @@ export function useSalesWorkflow() {
       return
     }
 
+    if (
+      inspection.quoteEngineInput &&
+      !quoteEngineInputHasLines(inspection.quoteEngineInput)
+    ) {
+      setSaveError("Add a service or custom item before saving this quote.")
+      return
+    }
+
     saveInFlightRef.current = true
 
     setIsSaving(true)
     setSaveError(null)
     try {
       const currentInput = inspection.quoteEngineInput
-      const quoteInputForSave = quoteEngineInputForSave({
-        input: currentInput,
-        dirty: quoteEngineInputDirty,
-      })
+      const quoteInputForSave = quoteEngineInputForSave(
+        {
+          input: currentInput,
+          dirty: quoteEngineInputDirty,
+        },
+        { snapshotBacked: Boolean(inspection.quoteEngineSnapshot) },
+      )
       const estimateForSave = normalizeInspection({
         ...inspection,
         quoteEngineInput: quoteInputForSave
@@ -1009,7 +1023,7 @@ export function useSalesWorkflow() {
   }
 
   const openEstimate = async (id: string) => {
-    if (openingEstimateId) return
+    if (openingEstimateId) return null
 
     setOpeningEstimateId(id)
 
@@ -1025,19 +1039,18 @@ export function useSalesWorkflow() {
 
         await loadEstimates()
 
-        return
+        return null
       }
 
       const savedEditableState = quoteEngineEditableStateFromSavedSnapshot(
         savedInspection.quoteEngineSnapshot,
         savedInspection.quoteEngineInput,
       )
-      setInspection(
-        normalizeInspection({
-          ...savedInspection,
-          quoteEngineInput: savedEditableState.input,
-        }),
-      )
+      const openedInspection = normalizeInspection({
+        ...savedInspection,
+        quoteEngineInput: savedEditableState.input,
+      })
+      setInspection(openedInspection)
       setQuoteEngineCalculation(savedInspection.quoteEngineSnapshot ?? null)
       setQuoteEngineCalculationError(null)
       setQuoteEngineCalculating(false)
@@ -1045,7 +1058,7 @@ export function useSalesWorkflow() {
       setQuoteEngineInputDirty(savedEditableState.dirty)
       writeLastOpenEstimateId(savedInspection.id)
 
-      setSavedAt(null)
+      setSavedAt(savedInspection.updatedAt)
 
       setSaveError(null)
 
@@ -1064,12 +1077,14 @@ export function useSalesWorkflow() {
       setOpenEstimatePickerOpen(false)
 
       setActiveNavItem("Estimate builder")
+      return openedInspection
     } catch (error) {
       setEstimatesError(
         error instanceof Error
           ? error.message
           : "Could not open that estimate. Try again.",
       )
+      return null
     } finally {
       setOpeningEstimateId(null)
     }
@@ -1109,38 +1124,19 @@ export function useSalesWorkflow() {
     const freshInspection = createEmptySalesInspection(
       currentUser?.username ?? "unassigned",
     )
-    const freshWorkflowData = normalizeSalesBrainWorkflowData(
-      freshInspection.workflowData,
-    )
-    const leadInspection = reconcileInspection({
-      ...freshInspection,
-      leadId: lead.id,
-      workflowData: normalizeSalesBrainWorkflowData({
-        ...freshWorkflowData,
-        customer: {
-          ...freshWorkflowData.customer,
-          leadType: lead.leadType,
-          company: lead.company || lead.companyName,
-          first: lead.first,
-          last: lead.last,
-          phone: lead.phone,
-          email: lead.email,
-          preferredContact: lead.preferredContact,
-          referralSource: lead.referralSource,
-          referralSourceOther: lead.referralSourceOther,
-          locationName: lead.locationName,
-          streetAddress: lead.streetAddress,
-          city: lead.city,
-          state: "NC",
-          zip: lead.zip,
-          accountNotes: lead.notes,
+    const leadInspection = reconcileInspection(
+      quoteInspectionWithUpdatedLead(
+        {
+          ...freshInspection,
+          leadId: lead.id,
+          quoteEngineInput: createEmptyQuoteEngineInput({
+            ...quoteEngineContextFor(freshInspection, currentUser),
+            leadId: lead.id,
+          }),
         },
-      }),
-      quoteEngineInput: createEmptyQuoteEngineInput({
-        ...quoteEngineContextFor(freshInspection, currentUser),
-        leadId: lead.id,
-      }),
-    })
+        lead,
+      ),
+    )
 
     setInspection(leadInspection)
     writeLastOpenEstimateId(leadInspection.id)
@@ -1796,6 +1792,15 @@ export function useSalesWorkflow() {
 
     await refreshOperations()
 
+    return lead
+  }
+
+  const updateActiveQuoteLead = async (input: Partial<LeadInput>) => {
+    const leadId = inspection.leadId
+    if (!leadId) throw new Error("This quote is not linked to a SalesBrain lead.")
+
+    const lead = await updateLead(leadId, input)
+    updateInspection((current) => quoteInspectionWithUpdatedLead(current, lead))
     return lead
   }
 
@@ -2483,10 +2488,13 @@ export function useSalesWorkflow() {
     }))
 
     try {
-      const quoteInputForSave = quoteEngineInputForSave({
-        input: inspection.quoteEngineInput,
-        dirty: quoteEngineInputDirty,
-      })
+      const quoteInputForSave = quoteEngineInputForSave(
+        {
+          input: inspection.quoteEngineInput,
+          dirty: quoteEngineInputDirty,
+        },
+        { snapshotBacked: Boolean(inspection.quoteEngineSnapshot) },
+      )
       const saved = await estimatesServiceRef.current!.saveEstimate(
         normalizeInspection({
           ...inspection,
@@ -2934,6 +2942,8 @@ export function useSalesWorkflow() {
     createLead,
 
     updateLead,
+
+    updateActiveQuoteLead,
 
     leadActivities,
 

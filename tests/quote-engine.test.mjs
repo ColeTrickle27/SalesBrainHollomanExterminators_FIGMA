@@ -245,6 +245,45 @@ test("a snapshot-backed quote omits reconstructed input until a quote edit is ma
   assert.equal(quoteEngineInputForSave(notesOnly), undefined)
 })
 
+test("a new modern draft submits only line-backed Quote Engine input", () => {
+  const emptyInput = {
+    quoteId: "new-modern-draft",
+    services: [],
+    customLineItems: [],
+  }
+  assert.equal(
+    quoteEngineInputForSave(
+      { input: emptyInput, dirty: false },
+      { snapshotBacked: false },
+    ),
+    undefined,
+  )
+
+  const serviceInput = {
+    ...emptyInput,
+    services: [{ lineId: "service-line", serviceId: "service-1" }],
+  }
+  assert.equal(
+    quoteEngineInputForSave(
+      { input: serviceInput, dirty: false },
+      { snapshotBacked: false },
+    ),
+    serviceInput,
+  )
+
+  const customInput = {
+    ...emptyInput,
+    customLineItems: [{ lineId: "custom-line", name: "Custom service" }],
+  }
+  assert.equal(
+    quoteEngineInputForSave(
+      { input: customInput, dirty: false },
+      { snapshotBacked: false },
+    ),
+    customInput,
+  )
+})
+
 test("selling-price and material edits include Quote Engine input on save", () => {
   const restored = quoteEngineInputFromSnapshot(mixedSnapshot)
   const sellingPriceEdited = {
