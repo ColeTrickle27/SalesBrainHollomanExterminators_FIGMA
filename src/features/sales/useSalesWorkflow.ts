@@ -1009,7 +1009,7 @@ export function useSalesWorkflow() {
   }
 
   const openEstimate = async (id: string) => {
-    if (openingEstimateId) return
+    if (openingEstimateId) return null
 
     setOpeningEstimateId(id)
 
@@ -1025,19 +1025,18 @@ export function useSalesWorkflow() {
 
         await loadEstimates()
 
-        return
+        return null
       }
 
       const savedEditableState = quoteEngineEditableStateFromSavedSnapshot(
         savedInspection.quoteEngineSnapshot,
         savedInspection.quoteEngineInput,
       )
-      setInspection(
-        normalizeInspection({
-          ...savedInspection,
-          quoteEngineInput: savedEditableState.input,
-        }),
-      )
+      const openedInspection = normalizeInspection({
+        ...savedInspection,
+        quoteEngineInput: savedEditableState.input,
+      })
+      setInspection(openedInspection)
       setQuoteEngineCalculation(savedInspection.quoteEngineSnapshot ?? null)
       setQuoteEngineCalculationError(null)
       setQuoteEngineCalculating(false)
@@ -1064,12 +1063,14 @@ export function useSalesWorkflow() {
       setOpenEstimatePickerOpen(false)
 
       setActiveNavItem("Estimate builder")
+      return openedInspection
     } catch (error) {
       setEstimatesError(
         error instanceof Error
           ? error.message
           : "Could not open that estimate. Try again.",
       )
+      return null
     } finally {
       setOpeningEstimateId(null)
     }

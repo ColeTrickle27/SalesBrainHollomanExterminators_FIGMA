@@ -176,7 +176,7 @@ export default function CustomerSearch({ onSelectCustomer, onClose }: Props) {
               </label>
             </div>
             <button disabled={!canCreate || creating} onClick={() => void createMappedCustomer()} className="mt-4 w-full bg-brand-red text-white font-bold py-3 rounded-xl font-display text-lg uppercase tracking-wide disabled:opacity-40">
-              {creating ? 'Creating…' : 'Create Folder & Start Inspection'}
+              {creating ? 'Creating…' : 'Select Customer & Start Quote'}
             </button>
           </div>
         ) : null}

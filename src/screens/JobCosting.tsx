@@ -41,31 +41,35 @@ interface EstimateListItem {
   status: string
 }
 
-interface Props {
+export interface QuoteBuilderPanelProps {
   inspection: SalesInspection
   workflowData: SalesBrainWorkflowData
-  products: SalesProduct[]
-  laborRoles: SalesLaborRole[]
-  settings: SalesCostingSettings
   pricebookServices: PricebookService[]
   currentUser: OpsBrainUser | null
   quoteEngineCalculation: QuoteEngineSnapshot | null
   quoteEngineCalculating: boolean
   quoteEngineCalculationError: string | null
-  estimates: EstimateListItem[]
-  estimatesLoading: boolean
-  estimatesError: string | null
-  openingEstimateId: string | null
   isSaving: boolean
   savedAt: string | null
   saveError: string | null
-  onOpenEstimate: (id: string) => Promise<void>
-  onChange: (data: SalesBrainWorkflowData) => void
   onQuoteNotesChange: (value: string) => void
   onQuoteEngineInputChange: (
     updater: (current: QuoteEngineInput) => QuoteEngineInput,
   ) => void
   onSave: () => void
+  embedded?: boolean
+}
+
+interface Props extends QuoteBuilderPanelProps {
+  products: SalesProduct[]
+  laborRoles: SalesLaborRole[]
+  settings: SalesCostingSettings
+  estimates: EstimateListItem[]
+  estimatesLoading: boolean
+  estimatesError: string | null
+  openingEstimateId: string | null
+  onOpenEstimate: (id: string) => Promise<unknown>
+  onChange: (data: SalesBrainWorkflowData) => void
 }
 
 interface QuotePickerProps extends Props {
@@ -135,7 +139,7 @@ export default function JobCosting(props: Props) {
         onClose={() => setShowPicker(false)}
       />
     )
-  if (!legacyCosting) return <QuoteBuilder {...props} />
+  if (quoteEngineBacked) return <QuoteBuilderPanel {...props} />
   return (
     <LegacyJobCosting {...props} onChooseQuote={() => setShowPicker(true)} />
   )
@@ -213,7 +217,7 @@ function QuotePicker({ hasQuoteContext, onClose, ...props }: QuotePickerProps) {
   )
 }
 
-function QuoteBuilder(props: Props) {
+export function QuoteBuilderPanel(props: QuoteBuilderPanelProps) {
   const input = props.inspection.quoteEngineInput
   const hasQuoteContext = hasQuoteEngineQuoteContext({
     leadId: props.inspection.leadId,
@@ -284,12 +288,21 @@ function QuoteBuilder(props: Props) {
   }
 
   return (
-    <div className="pb-28 px-4 pt-5 max-w-5xl mx-auto space-y-4">
-      <QuoteBuilderHeader
-        inspection={props.inspection}
-        workflowData={props.workflowData}
-        currentUser={props.currentUser}
-      />
+    <div
+      className={
+        props.embedded
+          ? "space-y-4"
+          : "pb-28 px-4 pt-5 max-w-5xl mx-auto space-y-4"
+      }
+      data-quote-pricing-authority="opsbrain-quote-engine"
+    >
+      {!props.embedded ? (
+        <QuoteBuilderHeader
+          inspection={props.inspection}
+          workflowData={props.workflowData}
+          currentUser={props.currentUser}
+        />
+      ) : null}
       <section className="bg-white rounded-2xl p-4 shadow-sm space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -307,8 +320,7 @@ function QuoteBuilder(props: Props) {
             </div>
             <div className="font-mono text-2xl font-bold text-brand-dark">
               {formatMoney(
-                calculation?.customerFacing.quoteTotalCents ??
-                  props.inspection.pricingSnapshot?.totalCents,
+                calculation?.customerFacing.quoteTotalCents,
               )}
             </div>
           </div>
@@ -411,27 +423,27 @@ function QuoteBuilder(props: Props) {
         calculating={props.quoteEngineCalculating}
         error={props.quoteEngineCalculationError}
       />
-      <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-surface px-4 py-3 z-20">
-        <div className="max-w-5xl mx-auto">
-          <button
-            onClick={props.onSave}
-            disabled={
-              !hasQuoteContext || props.isSaving || props.quoteEngineCalculating
-            }
-            className="w-full bg-brand-red text-white rounded-xl py-3 font-display text-lg font-bold uppercase disabled:opacity-50"
-          >
-            <Save size={17} className="inline mr-2" />
-            {props.isSaving ? "Saving…" : "Save Quote Builder"}
-          </button>
-          {props.saveError ? (
-            <div className="mt-2 text-xs text-danger">{props.saveError}</div>
-          ) : props.savedAt ? (
-            <div className="mt-2 text-xs text-success">
-              Saved {new Date(props.savedAt).toLocaleTimeString()}
-            </div>
-          ) : null}
+      {!props.embedded ? (
+        <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-surface px-4 py-3 z-20">
+          <div className="max-w-5xl mx-auto">
+            <button
+              onClick={props.onSave}
+              disabled={!hasQuoteContext || props.isSaving || props.quoteEngineCalculating}
+              className="w-full bg-brand-red text-white rounded-xl py-3 font-display text-lg font-bold uppercase disabled:opacity-50"
+            >
+              <Save size={17} className="inline mr-2" />
+              {props.isSaving ? "Saving…" : "Save Draft"}
+            </button>
+            {props.saveError ? (
+              <div className="mt-2 text-xs text-danger">{props.saveError}</div>
+            ) : props.savedAt ? (
+              <div className="mt-2 text-xs text-success">
+                Saved {new Date(props.savedAt).toLocaleTimeString()}
+              </div>
+            ) : null}
+          </div>
         </div>
-      </div>
+      ) : null}
     </div>
   )
 }
@@ -884,11 +896,11 @@ function InternalJobCost({
 }) {
   const internal = calculation?.internal
   return (
-    <section className="bg-brand-charcoal rounded-2xl p-4 text-white">
-      <div className="flex items-center justify-between gap-3">
+    <details className="bg-brand-charcoal rounded-2xl p-4 text-white">
+      <summary className="flex items-center justify-between gap-3 cursor-pointer list-none">
         <div>
           <h2 className="font-display text-xl font-bold uppercase">
-            Internal Job Cost
+            Internal Economics
           </h2>
           <p className="text-xs text-silver mt-1">
             Internal costs and margins never appear in customer presentation or
@@ -899,21 +911,29 @@ function InternalJobCost({
           <span className="text-xs font-bold bg-white/10 rounded-lg px-3 py-2">
             Calculating…
           </span>
+        ) : internal?.grossMarginPercent !== null &&
+          internal?.grossMarginPercent !== undefined ? (
+          <span className="text-sm font-mono font-bold">
+            {formatMargin(internal.grossMarginPercent)} GM
+          </span>
+        ) : (
+          <span className="text-xs text-silver">View details</span>
+        )}
+      </summary>
+      <div className="mt-4">
+        {error ? (
+          <div className="bg-danger/15 border border-danger/30 rounded-lg px-3 py-2 text-sm">
+            {error}
+          </div>
         ) : null}
-      </div>
-      {error ? (
-        <div className="mt-3 bg-danger/15 border border-danger/30 rounded-lg px-3 py-2 text-sm">
-          {error}
-        </div>
-      ) : null}
-      {!internal && !calculating && !error ? (
-        <p className="mt-3 text-sm text-silver">
-          Add a service or custom line item to request an authoritative
-          calculation from OpsBrain.
-        </p>
-      ) : null}
-      {internal ? (
-        <div className="mt-4 space-y-3">
+        {!internal && !calculating && !error ? (
+          <p className="text-sm text-silver">
+            Add a service or custom line item to request an authoritative
+            calculation from OpsBrain.
+          </p>
+        ) : null}
+        {internal ? (
+          <div className="space-y-3">
           <div className="grid sm:grid-cols-3 gap-3">
             <InternalMetric
               label="Total direct job cost"
@@ -932,9 +952,10 @@ function InternalJobCost({
             status={internal.marginStatus}
             message={internal.marginMessage}
           />
-        </div>
-      ) : null}
-    </section>
+          </div>
+        ) : null}
+      </div>
+    </details>
   )
 }
 

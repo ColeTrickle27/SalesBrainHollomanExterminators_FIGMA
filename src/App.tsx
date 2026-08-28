@@ -1,14 +1,10 @@
 import { useEffect, useMemo, useState } from "react"
 
 import {
-  Calculator,
   ChevronLeft,
-  FileText,
   History,
   Home,
-  Plus,
   Settings,
-  Trash2,
   Wifi,
   WifiOff,
 } from "lucide-react"
@@ -39,18 +35,24 @@ import ProposalPreview from "./screens/ProposalPreview"
 
 import QuoteHistory from "./screens/QuoteHistory"
 
+import QuoteWorkspace from "./screens/QuoteWorkspace"
+
+import { isQuoteEngineBackedQuote } from "./features/sales/quoteWorkspace"
+
 import type { CustomerSearchResult } from "./types/customer"
 
 import { normalizeSalesBrainWorkflowData } from "./types/figma-workflow"
 
 import type { SalesLead } from "./types/sales-operations"
 
-type Screen = "dashboard" | "customer-search" | "wizard" | "job-costing" | "presentation" | "proposal" | "quote-history" | "admin-detail"
+type Screen = "dashboard" | "customer-search" | "quote-workspace" | "wizard" | "job-costing" | "presentation" | "proposal" | "quote-history" | "admin-detail"
 
 const SCREEN_HASH: Record<Screen, string> = {
   dashboard: "home",
 
   "customer-search": "customer-search",
+
+  "quote-workspace": "quote-workspace",
 
   wizard: "active-quote",
 
@@ -71,10 +73,6 @@ const HASH_SCREEN = Object.fromEntries(
 
 const NAV_ITEMS = [
   { id: "dashboard", icon: Home, label: "Home" },
-
-  { id: "wizard", icon: FileText, label: "Active Quote" },
-
-  { id: "job-costing", icon: Calculator, label: "Quote Builder" },
   { id: "quote-history", icon: History, label: "Quotes" },
 
   { id: "admin-detail", icon: Settings, label: "Admin" },
@@ -88,6 +86,10 @@ export default function App() {
   const workflow = useSalesWorkflow()
 
   const [screen, setScreen] = useState<Screen>(() => screenFromLocation())
+
+  const [customerSearchReturn, setCustomerSearchReturn] = useState<Screen>(
+    "dashboard",
+  )
 
   const [isOffline, setIsOffline] = useState(false)
 
@@ -103,6 +105,7 @@ export default function App() {
     if (
       screen === "dashboard" ||
       screen === "quote-history" ||
+      screen === "quote-workspace" ||
       screen === "wizard" ||
       screen === "job-costing"
     )
@@ -122,30 +125,51 @@ export default function App() {
   const beginCustomerSearch = () => {
     workflow.startNewEstimate()
 
+    setCustomerSearchReturn("dashboard")
+
+    go("customer-search")
+  }
+
+  const changeCustomer = () => {
+    setCustomerSearchReturn("quote-workspace")
+
     go("customer-search")
   }
 
   const selectCustomer = (customer: CustomerSearchResult) => {
     workflow.selectCustomer(customer)
 
-    go("wizard")
+    go("quote-workspace")
   }
 
   const openEstimate = async (id: string) => {
-    await workflow.openEstimate(id)
+    const opened = await workflow.openEstimate(id)
 
-    go("wizard")
+    if (!opened) return
+
+    go(isQuoteEngineBackedQuote(opened) ? "quote-workspace" : "job-costing")
   }
 
   const startQuoteForLead = (lead: SalesLead) => {
     workflow.startQuoteForLead(lead)
 
-    go("job-costing")
+    go("quote-workspace")
   }
 
   const workflowData = normalizeSalesBrainWorkflowData(
     workflow.inspection.workflowData,
   )
+
+  const modernQuoteActive = isQuoteEngineBackedQuote(workflow.inspection)
+  const legacyRouteRequested =
+    screen === "wizard" ||
+    screen === "job-costing" ||
+    screen === "presentation" ||
+    screen === "proposal"
+
+  useEffect(() => {
+    if (modernQuoteActive && legacyRouteRequested) go("quote-workspace")
+  }, [legacyRouteRequested, modernQuoteActive])
 
   const initials = useMemo(() => {
     const name = workflow.currentUser?.name || ""
@@ -165,11 +189,11 @@ export default function App() {
     return (
       <CustomerSearch
         onSelectCustomer={selectCustomer}
-        onClose={() => go("dashboard")}
+        onClose={() => go(customerSearchReturn)}
       />
     )
 
-  if (screen === "presentation")
+  if (screen === "presentation" && !modernQuoteActive)
     return (
       <CustomerPresentation
         inspection={workflow.inspection}
@@ -185,7 +209,7 @@ export default function App() {
       />
     )
 
-  if (screen === "proposal")
+  if (screen === "proposal" && !modernQuoteActive)
     return (
       <ProposalPreview
         inspection={workflow.inspection}
@@ -249,7 +273,9 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2">
-            {screen === "wizard" || screen === "job-costing" ? (
+            {screen === "quote-workspace" ||
+            screen === "wizard" ||
+            screen === "job-costing" ? (
               <div className="hidden sm:block text-xs font-mono text-silver bg-white/8 px-2.5 py-1.5 rounded-xl">
                 {workflow.inspection.estimateNumber}
               </div>
@@ -304,16 +330,7 @@ export default function App() {
             onAddActivity={workflow.addLeadActivity}
           />
         ) : null}
-        {screen === "wizard" && !workflow.selectedCustomer && !workflow.inspection.leadId ? (
-          <ActiveQuoteLanding
-            estimates={workflow.estimates}
-            loading={workflow.estimatesLoading}
-            onNewQuote={beginCustomerSearch}
-            onOpenEstimate={(id) => void openEstimate(id)}
-            onDeleteEstimate={workflow.deleteEstimate}
-          />
-        ) : null}
-        {screen === "wizard" && (workflow.selectedCustomer || workflow.inspection.leadId) ? (
+        {screen === "wizard" && !modernQuoteActive ? (
           <InspectionWizard
             inspection={workflow.inspection}
             workflowData={workflowData}
@@ -371,7 +388,41 @@ export default function App() {
             onSavePestPacHandoff={workflow.savePestPacHandoffRecord}
           />
         ) : null}
-        {screen === "job-costing" ? (
+        {screen === "quote-workspace" ||
+        (modernQuoteActive && legacyRouteRequested) ? (
+          <QuoteWorkspace
+            inspection={workflow.inspection}
+            workflowData={workflowData}
+            pricebookServices={workflow.pricebookServices}
+            currentUser={workflow.currentUser}
+            quoteEngineCalculation={workflow.quoteEngineCalculation}
+            quoteEngineCalculating={workflow.quoteEngineCalculating}
+            quoteEngineCalculationError={workflow.quoteEngineCalculationError}
+            isSaving={workflow.isSaving}
+            savedAt={workflow.savedAt}
+            saveError={workflow.saveError}
+            graphNotes={workflow.graphNotes}
+            availableGraphFindings={workflow.availableGraphFindings}
+            onWorkflowDataChange={workflow.updateWorkflowData}
+            onOpenGraph={workflow.openBugmanGraphsChoice}
+            onAddFinding={workflow.addCustomNote}
+            onUpdateFinding={workflow.updateFindingSummary}
+            onUpdateFindingDetails={workflow.updateFindingDetails}
+            onRemoveFinding={workflow.removeFinding}
+            onToggleGraphFinding={workflow.toggleGraphFinding}
+            onAddPhotos={workflow.addPhotos}
+            onUpdatePhoto={workflow.updatePhoto}
+            onRetryPhoto={workflow.retryPhoto}
+            onRemovePhoto={(id) => void workflow.removePhoto(id)}
+            photoInputRef={workflow.fileInputRef}
+            onQuoteNotesChange={workflow.updateQuoteNotes}
+            onQuoteEngineInputChange={workflow.updateQuoteEngineInput}
+            onSave={() => void workflow.saveEstimate()}
+            onChangeCustomer={changeCustomer}
+            onEditLead={() => go("dashboard")}
+          />
+        ) : null}
+        {screen === "job-costing" && !modernQuoteActive ? (
           <JobCosting
             inspection={workflow.inspection}
             workflowData={workflowData}
@@ -498,102 +549,6 @@ export default function App() {
           onGraphSaved={workflow.handleGraphSaved}
         />
       ) : null}
-    </div>
-  )
-}
-
-function ActiveQuoteLanding({
-  estimates,
-  loading,
-  onNewQuote,
-  onOpenEstimate,
-  onDeleteEstimate,
-}: {
-  estimates: Array<{
-    id: string
-    estimateNumber: string
-    customerName: string | null
-    locationAddress: string | null
-    status: string
-  }>
-  loading: boolean
-  onNewQuote: () => void
-  onOpenEstimate: (id: string) => void
-  onDeleteEstimate: (id: string) => Promise<void>
-}) {
-  return (
-    <div className="pb-24 px-4 pt-5 max-w-4xl mx-auto space-y-5">
-      <button
-        onClick={onNewQuote}
-        className="w-full bg-brand-red rounded-2xl p-5 flex items-center gap-4 shadow-sm"
-      >
-        <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-          <Plus size={26} className="text-white" />
-        </div>
-        <div className="text-left">
-          <div className="font-display text-xl font-bold text-white uppercase">
-            Create New Quote
-          </div>
-          <div className="text-white/70 text-sm mt-0.5">
-            Search Ops Brain Customer Files to begin
-          </div>
-        </div>
-      </button>
-      <section>
-        <h2 className="font-display text-xl font-bold text-brand-dark uppercase mb-3">
-          Saved Quotes
-        </h2>
-        {loading ? (
-          <div className="bg-white rounded-2xl p-6 text-center text-sm text-steel">
-            Loading…
-          </div>
-        ) : null}
-        <div className="space-y-2">
-          {estimates.slice(0, 20).map((estimate) => (
-            <article
-              key={estimate.id}
-              className="w-full bg-white rounded-2xl p-4 shadow-sm flex items-center gap-3"
-            >
-              <button
-                onClick={() => onOpenEstimate(estimate.id)}
-                className="flex-1 min-w-0 text-left"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="font-semibold text-brand-dark truncate">
-                      {estimate.customerName || "Customer not selected"}
-                    </div>
-                    <div className="text-xs text-steel mt-1 truncate">
-                      {estimate.locationAddress || "No location"} •{" "}
-                      {estimate.estimateNumber}
-                    </div>
-                  </div>
-                  <span className="text-xs capitalize text-amber font-bold">
-                    {estimate.status}
-                  </span>
-                </div>
-              </button>
-              {estimate.status === "draft" || estimate.status === "sent" ? (
-                <button
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        `Delete open quote ${estimate.estimateNumber}? This removes it from SalesBrain.`,
-                      )
-                    )
-                      void onDeleteEstimate(estimate.id).catch(() => undefined)
-                  }}
-                  className="p-2 text-danger hover:bg-danger-light rounded-xl"
-                  aria-label={`Delete quote ${estimate.estimateNumber}`}
-                  title="Delete open quote"
-                >
-                  <Trash2 size={17} />
-                </button>
-              ) : null}
-            </article>
-          ))}
-        </div>
-      </section>
     </div>
   )
 }

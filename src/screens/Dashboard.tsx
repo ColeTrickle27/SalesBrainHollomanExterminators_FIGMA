@@ -45,8 +45,8 @@ export default function Dashboard(props: DashboardProps) {
   const [leadFormOpen, setLeadFormOpen] = useState(false)
   const [selectedLead, setSelectedLead] = useState<SalesLead | null>(null)
   const leads = data?.leads ?? []
-  const drafts = data?.drafts ?? estimates.filter((item) => item.status === "draft")
-  const pending = data?.pending ?? estimates.filter((item) => item.status === "sent")
+  const drafts = estimates.filter((item) => item.status === "draft")
+  const pending = estimates.filter((item) => item.status === "sent")
   const filteredLeads = useMemo(() => {
     const query = leadQuery.trim().toLowerCase()
     return leads.filter((lead) => (leadStatus === "all" || lead.status === leadStatus) && (temperature === "all" || lead.temperature === temperature) && (!query || `${lead.customerName} ${lead.companyName} ${lead.phone} ${lead.email}`.toLowerCase().includes(query)))
@@ -79,7 +79,7 @@ export default function Dashboard(props: DashboardProps) {
           </button>
           <button onClick={onStartInspection} className="bg-brand-dark rounded-2xl p-4 flex items-center gap-3 text-left shadow-sm">
             <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center"><FileText size={21} className="text-white" /></div>
-            <div><div className="font-display text-lg font-bold text-white uppercase">Start Inspection</div><div className="text-white/65 text-xs">Quote an existing Ops Brain customer</div></div>
+            <div><div className="font-display text-lg font-bold text-white uppercase">New Quote</div><div className="text-white/65 text-xs">Select an existing Ops Brain customer</div></div>
           </button>
         </div>
 

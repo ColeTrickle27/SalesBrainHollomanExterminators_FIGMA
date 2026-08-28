@@ -114,6 +114,33 @@ interface Props {
   onSavePestPacHandoff: (input: PestPacHandoff & { complete?: boolean }) => Promise<unknown>
 }
 
+export interface QuoteInspectionProps {
+  inspection: SalesInspection
+  workflowData: SalesBrainWorkflowData
+  graphNotes: InspectionMarker[]
+  availableGraphFindings: InspectionFinding[]
+  onWorkflowDataChange: (data: SalesBrainWorkflowData) => void
+  onOpenGraph: () => void
+  onAddFinding: (summary: string) => void
+  onUpdateFinding: (id: string, summary: string) => void
+  onUpdateFindingDetails: (
+    id: string,
+    patch: Partial<InspectionFinding>,
+  ) => void
+  onRemoveFinding: (id: string) => void
+  onToggleGraphFinding: (id: string) => void
+  onAddPhotos: (event: ChangeEvent<HTMLInputElement>) => void
+  onUpdatePhoto: (
+    id: string,
+    patch: Partial<
+      Pick<PhotoReference, "caption" | "customerVisible" | "findingIds">
+    >,
+  ) => void
+  onRetryPhoto: (id: string) => void | Promise<void>
+  onRemovePhoto: (id: string) => void
+  photoInputRef: RefObject<HTMLInputElement | null>
+}
+
 export default function InspectionWizard(props: Props) {
   const data = normalizeSalesBrainWorkflowData(props.workflowData)
   const step = Math.min(STEPS.length, Math.max(1, data.currentStep || 1))
@@ -165,6 +192,60 @@ export default function InspectionWizard(props: Props) {
       {props.saveError ? <div className="max-w-5xl mx-auto mt-2 text-xs text-danger">{props.saveError}</div> : props.savedAt ? <div className="max-w-5xl mx-auto mt-2 text-xs text-success">Saved {new Date(props.savedAt).toLocaleTimeString()}</div> : null}
     </div>
   </div>
+}
+
+const QUOTE_INSPECTION_SECTIONS = [
+  { id: "structures", label: "Structures / Graph" },
+  { id: "findings", label: "Findings / Moisture" },
+  { id: "photos", label: "Photos" },
+] as const
+
+export function QuoteInspection(props: QuoteInspectionProps) {
+  const [section, setSection] = useState<
+    (typeof QUOTE_INSPECTION_SECTIONS)[number]["id"]
+  >("structures")
+  const data = normalizeSalesBrainWorkflowData(props.workflowData)
+
+  return (
+    <div className="space-y-4" data-quote-inspection="optional">
+      <div className="rounded-2xl bg-info-light border border-info/20 p-3 text-sm text-info">
+        Inspection details are optional. Add them when they help document the
+        property; they are not required to build or save a quote.
+      </div>
+      <div
+        className="grid grid-cols-3 gap-1 rounded-xl bg-white p-1 shadow-sm"
+        aria-label="Inspection sections"
+      >
+        {QUOTE_INSPECTION_SECTIONS.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => setSection(item.id)}
+            aria-pressed={section === item.id}
+            className={`rounded-lg px-2 py-2.5 text-xs font-bold ${
+              section === item.id
+                ? "bg-brand-dark text-white"
+                : "text-steel hover:bg-surface"
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+      {section === "structures" ? (
+        <StructuresStep
+          inspection={props.inspection}
+          data={data}
+          onChange={props.onWorkflowDataChange}
+          onOpenGraph={props.onOpenGraph}
+        />
+      ) : null}
+      {section === "findings" ? (
+        <FindingsMoistureStep {...props} data={data} />
+      ) : null}
+      {section === "photos" ? <PhotosStep {...props} /> : null}
+    </div>
+  )
 }
 
 function CustomerStep({ inspection, data, onChange }: { inspection: SalesInspection; data: SalesBrainWorkflowData; onChange: (data: SalesBrainWorkflowData) => void }) {
@@ -222,7 +303,11 @@ function StructuresStep({ inspection, data, onChange, onOpenGraph }: { inspectio
   </StepContainer>
 }
 
-function FindingsMoistureStep(props: Props & { data: SalesBrainWorkflowData }) {
+function FindingsMoistureStep(
+  props: Omit<QuoteInspectionProps, "workflowData"> & {
+    data: SalesBrainWorkflowData
+  },
+) {
   const { inspection, data } = props
   const grouped = groupFindings(props.availableGraphFindings)
   const moisture = data.moisture
@@ -290,7 +375,7 @@ function ServiceOptionsEditor({ data, services, packages, loading, error, onChan
   </div>
 }
 
-function PhotosStep(props: Props) {
+function PhotosStep(props: Omit<QuoteInspectionProps, "workflowData">) {
   return <StepContainer icon={<Camera size={20} />} title="Inspection Photos" sub="Upload, caption, assign, and approve customer-facing evidence">
     <input ref={props.photoInputRef} type="file" accept="image/*" multiple className="hidden" onChange={props.onAddPhotos} />
     <button onClick={() => props.photoInputRef.current?.click()} className="w-full bg-brand-dark text-white font-display font-bold uppercase py-3 rounded-xl"><Camera size={18} className="inline mr-2" />Add Inspection Photos</button>
