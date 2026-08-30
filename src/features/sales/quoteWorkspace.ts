@@ -1,7 +1,10 @@
 import type { SalesInspection } from "../../types/sales-inspection"
 import type { CustomerIdentitySearchResult } from "../../types/customer"
 import type { QuoteEngineSnapshot } from "../../types/quote-engine"
-import type { SalesBrainWorkflowData } from "../../types/figma-workflow"
+import type {
+  SalesBrainCustomerDetails,
+  SalesBrainWorkflowData,
+} from "../../types/figma-workflow"
 import type { SalesLead } from "../../types/sales-operations"
 
 export type QuoteWorkspaceRoute =
@@ -99,6 +102,58 @@ export function canonicalCustomerContext(
     customerLocationId: customer.customerLocationId,
     billTo: customer.billTo,
     location: customer.location,
+  }
+}
+
+/**
+ * Apply the canonical identity snapshot to the legacy customer fields used by
+ * SalesBrain's workflow and saved quotes. Canonical identity intentionally
+ * omits account type and split first/last names, so its display name is the
+ * safe fallback without manufacturing structured data.
+ */
+export function canonicalCustomerWorkflowDetails(
+  customer: CustomerIdentitySearchResult,
+  previousCustomer: SalesBrainCustomerDetails,
+  { preserveNameSnapshot = false }: { preserveNameSnapshot?: boolean } = {},
+): SalesBrainCustomerDetails {
+  const displayName =
+    customer.customerName.trim() || customer.billTo.billToName.trim()
+  const selectedFirst = customer.billTo.customerFirstName || ""
+  const selectedLast = customer.billTo.customerLastName || ""
+  const selectedCompany =
+    customer.billTo.accountType === "company"
+      ? customer.billTo.billToName.trim() || displayName
+      : customer.billTo.accountType === "individual" &&
+          (selectedFirst || selectedLast)
+        ? ""
+        : displayName
+  const serviceAddress =
+    customer.serviceAddress || customer.location.locationAddress || ""
+
+  return {
+    ...previousCustomer,
+    leadType: "Existing Customer",
+    company:
+      preserveNameSnapshot && previousCustomer.company.trim()
+        ? previousCustomer.company
+        : selectedCompany,
+    first:
+      preserveNameSnapshot && previousCustomer.first.trim()
+        ? previousCustomer.first
+        : selectedFirst,
+    last:
+      preserveNameSnapshot && previousCustomer.last.trim()
+        ? previousCustomer.last
+        : selectedLast,
+    phone: customer.phone || "",
+    email: customer.email || "",
+    locationName: customer.locationName || customer.location.locationName || "",
+    streetAddress: serviceAddress,
+    city: preserveNameSnapshot ? previousCustomer.city : "",
+    state: "NC",
+    zip: preserveNameSnapshot ? previousCustomer.zip : "",
+    serviceAddress,
+    accountNotes: preserveNameSnapshot ? previousCustomer.accountNotes : "",
   }
 }
 

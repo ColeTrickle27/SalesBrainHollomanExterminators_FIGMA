@@ -3,6 +3,10 @@ import { AlertTriangle, ChevronRight, MapPin, Search, User, X } from 'lucide-rea
 
 import { createCustomerIdentityService, OpsBrainAuthError } from '../services/opsBrain'
 import {
+  customerSearchShortQueryState,
+  customerSearchStatusLabel,
+} from '../features/sales/customerSearchState'
+import {
   isSelectableExistingCustomerIdentity,
   type CustomerIdentitySearchResult,
 } from '../types/customer'
@@ -23,9 +27,11 @@ export default function CustomerSearch({ onSelectCustomer, onClose }: Props) {
   useEffect(() => {
     const normalized = query.trim()
     if (normalized.length < 2) {
-      setResults([])
-      setError(null)
-      setAuthExpired(false)
+      const cleared = customerSearchShortQueryState()
+      setResults(cleared.results)
+      setLoading(cleared.loading)
+      setError(cleared.error)
+      setAuthExpired(cleared.authExpired)
       return
     }
 
@@ -97,7 +103,11 @@ export default function CustomerSearch({ onSelectCustomer, onClose }: Props) {
 
         <div className="flex items-center justify-between">
           <span className="text-xs text-steel font-semibold uppercase tracking-wider">
-            {loading ? 'Searching…' : query.trim().length < 2 ? 'Enter at least 2 characters' : `${selectableResults.length} result${selectableResults.length === 1 ? '' : 's'}`}
+            {customerSearchStatusLabel({
+              loading,
+              query,
+              resultCount: selectableResults.length,
+            })}
           </span>
         </div>
 

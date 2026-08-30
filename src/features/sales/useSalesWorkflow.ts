@@ -54,6 +54,7 @@ import {
 import {
   canonicalCustomerContext,
   canonicalCustomerSelectionChanged,
+  canonicalCustomerWorkflowDetails,
   quoteInspectionWithUpdatedLead,
 } from "./quoteWorkspace"
 
@@ -1174,6 +1175,11 @@ export function useSalesWorkflow() {
 
     updateInspection((previous) => {
       const changed = customerChanged
+      const workflowCustomer = canonicalCustomerWorkflowDetails(
+        customer,
+        normalizeSalesBrainWorkflowData(previous.workflowData).customer,
+        { preserveNameSnapshot: !changed },
+      )
 
       if (!changed)
         return {
@@ -1183,31 +1189,7 @@ export function useSalesWorkflow() {
           workflowData: normalizeSalesBrainWorkflowData({
             ...previous.workflowData,
 
-            customer: {
-              ...normalizeSalesBrainWorkflowData(previous.workflowData)
-                .customer,
-
-              leadType: "Existing Customer",
-
-              company:
-                customer.billTo.accountType === "company"
-                  ? customer.billTo.billToName
-                  : "",
-
-              first: customer.billTo.customerFirstName || "",
-
-              last: customer.billTo.customerLastName || "",
-
-              phone: customer.phone || "",
-
-              email: customer.email || "",
-
-              locationName: customer.location.locationName || "",
-
-              streetAddress: customer.location.locationAddress || "",
-
-              state: "NC",
-            },
+            customer: workflowCustomer,
           }),
           quoteEngineInput: previous.quoteEngineInput
             ? quoteEngineInputWithCurrentContext(
@@ -1230,30 +1212,7 @@ export function useSalesWorkflow() {
         workflowData: normalizeSalesBrainWorkflowData({
           ...previous.workflowData,
 
-          customer: {
-            ...normalizeSalesBrainWorkflowData(previous.workflowData).customer,
-
-            leadType: "Existing Customer",
-
-            company:
-              customer.billTo.accountType === "company"
-                ? customer.billTo.billToName
-                : "",
-
-            first: customer.billTo.customerFirstName || "",
-
-            last: customer.billTo.customerLastName || "",
-
-            phone: customer.phone || "",
-
-            email: customer.email || "",
-
-            locationName: customer.location.locationName || "",
-
-            streetAddress: customer.location.locationAddress || "",
-
-            state: "NC",
-          },
+          customer: workflowCustomer,
         }),
 
         property: undefined,
