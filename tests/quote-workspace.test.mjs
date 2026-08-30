@@ -457,7 +457,7 @@ test("customer changes retain the reviewed same-context and reset protections", 
   assert.match(workflowSource, /setQuoteEngineInputDirty\(false\)/)
   assert.match(workflowSource, /quoteEngineSnapshot: undefined/)
   assert.match(workflowSource, /quoteNotes: undefined/)
-  assert.match(workflowSource, /leadId: undefined/)
+  assert.match(workflowSource, /canonicalCustomerContext\(customer\)/)
 })
 
 test("incomplete, excluded, mixed, and low-margin business statuses remain non-blocking", () => {

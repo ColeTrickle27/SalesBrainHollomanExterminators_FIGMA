@@ -1,4 +1,5 @@
 import type { SalesInspection } from "../../types/sales-inspection"
+import type { CustomerIdentitySearchResult } from "../../types/customer"
 import type { QuoteEngineSnapshot } from "../../types/quote-engine"
 import type { SalesBrainWorkflowData } from "../../types/figma-workflow"
 import type { SalesLead } from "../../types/sales-operations"
@@ -88,6 +89,31 @@ export function quoteInspectionWithUpdatedLead(
       },
     },
   }
+}
+
+export function canonicalCustomerContext(
+  customer: CustomerIdentitySearchResult,
+) {
+  return {
+    leadId: undefined,
+    customerLocationId: customer.customerLocationId,
+    billTo: customer.billTo,
+    location: customer.location,
+  }
+}
+
+export function canonicalCustomerSelectionChanged(
+  inspection: Pick<
+    SalesInspection,
+    "customerLocationId" | "billTo" | "location"
+  >,
+  customer: CustomerIdentitySearchResult,
+) {
+  return (
+    inspection.customerLocationId !== customer.customerLocationId ||
+    inspection.billTo?.billToNumber !== customer.billTo.billToNumber ||
+    inspection.location?.locationNumber !== customer.location.locationNumber
+  )
 }
 
 export function getQuoteWorkspaceReadiness({

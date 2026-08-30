@@ -17,7 +17,10 @@ import {
   useState,
 } from "react"
 
-import type { CustomerSearchResult } from "../../types/customer"
+import type {
+  CustomerIdentitySearchResult,
+  CustomerSearchResult,
+} from "../../types/customer"
 
 import type { InspectionFinding } from "../../types/findings"
 
@@ -48,6 +51,11 @@ import {
   normalizeSalesBrainWorkflowData,
   type SalesBrainWorkflowData,
 } from "../../types/figma-workflow"
+import {
+  canonicalCustomerContext,
+  canonicalCustomerSelectionChanged,
+  quoteInspectionWithUpdatedLead,
+} from "./quoteWorkspace"
 
 import type {
   LeadActivity,
@@ -69,8 +77,6 @@ import type {
   SalesServicePackageInput,
   SalesSignatureRequest,
 } from "../../types/sales-operations"
-import { quoteInspectionWithUpdatedLead } from "./quoteWorkspace"
-
 interface PendingPhotoFile {
   file: File
   previewUrl: string
@@ -1160,12 +1166,11 @@ export function useSalesWorkflow() {
    * value that belongs to the previous property while retaining the prior
    * behavior of leaving photos untouched until an explicit New Estimate. */
 
-  const selectCustomer = (customer: CustomerSearchResult) => {
-    const selected = selectedCustomerFor(inspection)
-    const customerChanged =
-      selected === null ||
-      selected.billTo.billToNumber !== customer.billTo.billToNumber ||
-      selected.location.locationNumber !== customer.location.locationNumber
+  const selectCustomer = (customer: CustomerIdentitySearchResult) => {
+    const customerChanged = canonicalCustomerSelectionChanged(
+      inspection,
+      customer,
+    )
 
     updateInspection((previous) => {
       const changed = customerChanged
@@ -1173,12 +1178,7 @@ export function useSalesWorkflow() {
       if (!changed)
         return {
           ...previous,
-
-          leadId: undefined,
-
-          billTo: customer.billTo,
-
-          location: customer.location,
+          ...canonicalCustomerContext(customer),
 
           workflowData: normalizeSalesBrainWorkflowData({
             ...previous.workflowData,
@@ -1198,6 +1198,10 @@ export function useSalesWorkflow() {
 
               last: customer.billTo.customerLastName || "",
 
+              phone: customer.phone || "",
+
+              email: customer.email || "",
+
               locationName: customer.location.locationName || "",
 
               streetAddress: customer.location.locationAddress || "",
@@ -1208,11 +1212,9 @@ export function useSalesWorkflow() {
           quoteEngineInput: previous.quoteEngineInput
             ? quoteEngineInputWithCurrentContext(
                 previous.quoteEngineInput,
-              {
-                ...previous,
-                leadId: undefined,
-                billTo: customer.billTo,
-                location: customer.location,
+                {
+                  ...previous,
+                  ...canonicalCustomerContext(customer),
                 },
                 currentUser,
               )
@@ -1223,12 +1225,7 @@ export function useSalesWorkflow() {
 
       return {
         ...previous,
-
-        leadId: undefined,
-
-        billTo: customer.billTo,
-
-        location: customer.location,
+        ...canonicalCustomerContext(customer),
 
         workflowData: normalizeSalesBrainWorkflowData({
           ...previous.workflowData,
@@ -1246,6 +1243,10 @@ export function useSalesWorkflow() {
             first: customer.billTo.customerFirstName || "",
 
             last: customer.billTo.customerLastName || "",
+
+            phone: customer.phone || "",
+
+            email: customer.email || "",
 
             locationName: customer.location.locationName || "",
 
@@ -1271,9 +1272,7 @@ export function useSalesWorkflow() {
           quoteEngineContextFor(
             {
               ...previous,
-              leadId: undefined,
-              billTo: customer.billTo,
-              location: customer.location,
+              ...canonicalCustomerContext(customer),
             },
             currentUser,
           ),

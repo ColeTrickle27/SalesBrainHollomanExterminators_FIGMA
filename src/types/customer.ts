@@ -21,7 +21,8 @@ export interface CustomerBillTo {
   billToNumber: string;
   /** Display name for the Bill-To (company name, or "Last, First" for individuals). */
   billToName: string;
-  accountType: CustomerAccountType;
+  /** Legacy Customer Files supplies this; canonical identity search does not. */
+  accountType?: CustomerAccountType;
   customerFirstName?: string;
   customerLastName?: string;
 }
@@ -57,6 +58,22 @@ export interface CustomerLocationRef {
 export interface CustomerSearchResult {
   billTo: CustomerBillTo;
   location: CustomerLocation;
+}
+
+export type CustomerIdentityState = "temporary" | "permanent";
+
+/** Canonical OpsBrain D1 Location plus the copied display snapshot used by a quote. */
+export interface CustomerIdentitySearchResult extends CustomerSearchResult {
+  customerLocationId: string;
+  billToId: string;
+  identityState: CustomerIdentityState;
+  customerName: string;
+  locationName: string;
+  serviceAddress: string;
+  phone: string | null;
+  email: string | null;
+  pestpacBillToNumber: string | null;
+  pestpacLocationNumber: string | null;
 }
 
 /** Input for creating a Bill-To / Location that already exists in PestPac but not yet in Ops Brain. */
