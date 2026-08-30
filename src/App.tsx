@@ -44,7 +44,7 @@ import {
   type QuoteWorkspaceRoute,
 } from "./features/sales/quoteWorkspace"
 
-import type { CustomerSearchResult } from "./types/customer"
+import type { CustomerIdentitySearchResult } from "./types/customer"
 
 import { normalizeSalesBrainWorkflowData } from "./types/figma-workflow"
 
@@ -141,7 +141,7 @@ export default function App() {
     go("customer-search")
   }
 
-  const selectCustomer = (customer: CustomerSearchResult) => {
+  const selectCustomer = (customer: CustomerIdentitySearchResult) => {
     workflow.selectCustomer(customer)
 
     go("quote-workspace")

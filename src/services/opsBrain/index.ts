@@ -1,4 +1,5 @@
 export type { CustomerFilesService } from "./customerFilesService"
+export type { CustomerIdentityService } from "./customerIdentityService"
 
 export type { CurrentUserService } from "./currentUserService"
 
@@ -13,8 +14,10 @@ export type { QuoteEngineService } from "./quoteEngineService"
 export { OpsBrainAuthError } from "./errors"
 
 export { HttpCustomerFilesService } from "./httpCustomerFilesService"
+export { HttpCustomerIdentityService } from "./httpCustomerIdentityService"
 
 export { MockCustomerFilesService } from "./mockCustomerFilesService"
+export { MockCustomerIdentityService } from "./mockCustomerIdentityService"
 
 export { HttpCurrentUserService } from "./httpCurrentUserService"
 
@@ -33,8 +36,10 @@ export { HttpQuoteEngineService } from "./httpQuoteEngineService"
 export * from "./types"
 
 import { HttpCustomerFilesService } from "./httpCustomerFilesService"
+import { HttpCustomerIdentityService } from "./httpCustomerIdentityService"
 
 import { MockCustomerFilesService } from "./mockCustomerFilesService"
+import { MockCustomerIdentityService } from "./mockCustomerIdentityService"
 
 import { HttpCurrentUserService } from "./httpCurrentUserService"
 
@@ -49,6 +54,7 @@ import { HttpSalesBrainPricebookService } from "./httpSalesBrainPricebookService
 import { MockSalesBrainPricebookService } from "./mockSalesBrainPricebookService"
 
 import type { CustomerFilesService } from "./customerFilesService"
+import type { CustomerIdentityService } from "./customerIdentityService"
 
 import type { CurrentUserService } from "./currentUserService"
 
@@ -99,6 +105,21 @@ export function createCustomerFilesService(): CustomerFilesService {
   }
 
   return new MockCustomerFilesService()
+}
+
+/** Canonical customer selection for modern quotes; never falls back to Customer Files. */
+export function createCustomerIdentityService(): CustomerIdentityService {
+  const mode =
+    import.meta.env.VITE_CUSTOMER_IDENTITY_MODE ??
+    (import.meta.env.PROD ? "http" : "mock")
+
+  if (mode === "http") {
+    return new HttpCustomerIdentityService({
+      baseUrl: import.meta.env.VITE_OPS_BRAIN_BASE_URL ?? "",
+    })
+  }
+
+  return new MockCustomerIdentityService()
 }
 
 /**

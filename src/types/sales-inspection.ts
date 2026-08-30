@@ -47,6 +47,8 @@ export interface SalesInspection {
   /** e.g. "HE-2641" -- human-facing estimate number, independent of PestPac IDs. */
   estimateNumber: string
   leadId?: string
+  /** Canonical OpsBrain D1 Location reference; display fields below remain snapshots. */
+  customerLocationId?: string | null
 
   billTo?: CustomerBillTo
 

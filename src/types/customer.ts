@@ -1,16 +1,13 @@
 /**
  * Customer domain models.
  *
- * These mirror the Bill-To / Location shape that Holloman Ops Brain already
- * maintains in `bill-tos/{billToNumber} - {billToName}/{locationNumber} - {locationName}/`
- * R2 prefixes and returns from its `/api/accounts`, `/api/search`, and
- * `/api/location` routes (see functions/api/[[path]].js -> normalizeIndexedLocation).
+ * Existing-customer quotes use OpsBrain's canonical customer identity API,
+ * while Customer Files continues to own its legacy R2 file operations.
  *
  * Sales Brain does NOT own customer data. It references Ops Brain's Bill-To /
- * Location records by id/code. If a Bill-To or Location does not yet exist in
- * Ops Brain (e.g. a customer created in PestPac after ~Aug 3, 2026), the UI
- * must prompt the user to create it there using the exact PestPac identifiers
- * -- Sales Brain must never invent or duplicate a customer record.
+ * Location records by id/code. Customers not yet represented by a permanent
+ * PestPac-backed identity begin through New Lead in this phase. SalesBrain
+ * must never invent or duplicate customer identity.
  */
 
 export type CustomerAccountType = "individual" | "company";
@@ -21,7 +18,8 @@ export interface CustomerBillTo {
   billToNumber: string;
   /** Display name for the Bill-To (company name, or "Last, First" for individuals). */
   billToName: string;
-  accountType: CustomerAccountType;
+  /** Legacy Customer Files supplies this; canonical identity search does not. */
+  accountType?: CustomerAccountType;
   customerFirstName?: string;
   customerLastName?: string;
 }
@@ -57,6 +55,34 @@ export interface CustomerLocationRef {
 export interface CustomerSearchResult {
   billTo: CustomerBillTo;
   location: CustomerLocation;
+}
+
+export type CustomerIdentityState = "temporary" | "permanent";
+
+/** Canonical OpsBrain D1 Location plus the copied display snapshot used by a quote. */
+export interface CustomerIdentitySearchResult extends CustomerSearchResult {
+  customerLocationId: string;
+  billToId: string;
+  identityState: CustomerIdentityState;
+  customerName: string;
+  locationName: string;
+  serviceAddress: string;
+  phone: string | null;
+  email: string | null;
+  pestpacBillToNumber: string | null;
+  pestpacLocationNumber: string | null;
+}
+
+/** The modern New Quote picker accepts only complete permanent PestPac locations. */
+export function isSelectableExistingCustomerIdentity(
+  identity: CustomerIdentitySearchResult,
+) {
+  return Boolean(
+    identity.identityState === "permanent" &&
+      identity.customerLocationId.trim() &&
+      identity.pestpacBillToNumber?.trim() &&
+      identity.pestpacLocationNumber?.trim(),
+  );
 }
 
 /** Input for creating a Bill-To / Location that already exists in PestPac but not yet in Ops Brain. */

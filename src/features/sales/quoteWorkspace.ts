@@ -1,4 +1,5 @@
 import type { SalesInspection } from "../../types/sales-inspection"
+import type { CustomerIdentitySearchResult } from "../../types/customer"
 import type { QuoteEngineSnapshot } from "../../types/quote-engine"
 import type { SalesBrainWorkflowData } from "../../types/figma-workflow"
 import type { SalesLead } from "../../types/sales-operations"
@@ -88,6 +89,51 @@ export function quoteInspectionWithUpdatedLead(
       },
     },
   }
+}
+
+export function canonicalCustomerContext(
+  customer: CustomerIdentitySearchResult,
+) {
+  return {
+    leadId: undefined,
+    customerLocationId: customer.customerLocationId,
+    billTo: customer.billTo,
+    location: customer.location,
+  }
+}
+
+export function canonicalCustomerSelectionChanged(
+  inspection: Pick<
+    SalesInspection,
+    "customerLocationId" | "billTo" | "location"
+  >,
+  customer: CustomerIdentitySearchResult,
+) {
+  const currentBillToNumber = inspection.billTo?.billToNumber.trim()
+  const currentLocationNumber = inspection.location?.locationNumber.trim()
+  const selectedBillToNumber = customer.billTo.billToNumber.trim()
+  const selectedLocationNumber = customer.location.locationNumber.trim()
+
+  if (
+    currentBillToNumber &&
+    currentLocationNumber &&
+    selectedBillToNumber &&
+    selectedLocationNumber
+  ) {
+    return (
+      currentBillToNumber !== selectedBillToNumber ||
+      currentLocationNumber !== selectedLocationNumber
+    )
+  }
+
+  if (inspection.customerLocationId && customer.customerLocationId) {
+    return inspection.customerLocationId !== customer.customerLocationId
+  }
+
+  return (
+    currentBillToNumber !== selectedBillToNumber ||
+    currentLocationNumber !== selectedLocationNumber
+  )
 }
 
 export function getQuoteWorkspaceReadiness({
