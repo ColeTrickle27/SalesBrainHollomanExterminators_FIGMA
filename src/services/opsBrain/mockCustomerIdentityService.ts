@@ -14,6 +14,18 @@ const PREVIEW_IDENTITIES = [
     pestpacBillToNumber: "1042",
     pestpacLocationNumber: "3",
   },
+  {
+    locationId: "preview-location-temporary",
+    billToId: "preview-bill-to-temporary",
+    identityState: "temporary" as const,
+    customerName: "Parker Future",
+    locationName: "Future Prospect",
+    serviceAddress: "44 New Business Parkway, Raleigh, NC 27602",
+    phone: "919-555-0199",
+    email: "future.parker@example.test",
+    pestpacBillToNumber: null,
+    pestpacLocationNumber: null,
+  },
 ]
 
 export class MockCustomerIdentityService implements CustomerIdentityService {

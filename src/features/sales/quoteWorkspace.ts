@@ -109,10 +109,30 @@ export function canonicalCustomerSelectionChanged(
   >,
   customer: CustomerIdentitySearchResult,
 ) {
+  const currentBillToNumber = inspection.billTo?.billToNumber.trim()
+  const currentLocationNumber = inspection.location?.locationNumber.trim()
+  const selectedBillToNumber = customer.billTo.billToNumber.trim()
+  const selectedLocationNumber = customer.location.locationNumber.trim()
+
+  if (
+    currentBillToNumber &&
+    currentLocationNumber &&
+    selectedBillToNumber &&
+    selectedLocationNumber
+  ) {
+    return (
+      currentBillToNumber !== selectedBillToNumber ||
+      currentLocationNumber !== selectedLocationNumber
+    )
+  }
+
+  if (inspection.customerLocationId && customer.customerLocationId) {
+    return inspection.customerLocationId !== customer.customerLocationId
+  }
+
   return (
-    inspection.customerLocationId !== customer.customerLocationId ||
-    inspection.billTo?.billToNumber !== customer.billTo.billToNumber ||
-    inspection.location?.locationNumber !== customer.location.locationNumber
+    currentBillToNumber !== selectedBillToNumber ||
+    currentLocationNumber !== selectedLocationNumber
   )
 }
 

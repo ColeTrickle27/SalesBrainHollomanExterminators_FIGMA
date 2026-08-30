@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, ChevronRight, MapPin, Search, User, X } from 'lucide-react'
 
 import { createCustomerIdentityService, OpsBrainAuthError } from '../services/opsBrain'
-import type { CustomerIdentitySearchResult } from '../types/customer'
+import {
+  isSelectableExistingCustomerIdentity,
+  type CustomerIdentitySearchResult,
+} from '../types/customer'
 
 interface Props {
   onSelectCustomer: (customer: CustomerIdentitySearchResult) => void
@@ -53,6 +56,8 @@ export default function CustomerSearch({ onSelectCustomer, onClose }: Props) {
     }
   }, [query])
 
+  const selectableResults = results.filter(isSelectableExistingCustomerIdentity)
+
   return (
     <div className="min-h-screen bg-surface flex flex-col pb-6">
       <div className="bg-brand-black px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
@@ -92,11 +97,11 @@ export default function CustomerSearch({ onSelectCustomer, onClose }: Props) {
 
         <div className="flex items-center justify-between">
           <span className="text-xs text-steel font-semibold uppercase tracking-wider">
-            {loading ? 'Searching…' : query.trim().length < 2 ? 'Enter at least 2 characters' : `${results.length} result${results.length === 1 ? '' : 's'}`}
+            {loading ? 'Searching…' : query.trim().length < 2 ? 'Enter at least 2 characters' : `${selectableResults.length} result${selectableResults.length === 1 ? '' : 's'}`}
           </span>
         </div>
 
-        {!loading && query.trim().length >= 2 && results.length === 0 && !error && !authExpired ? (
+        {!loading && query.trim().length >= 2 && selectableResults.length === 0 && !error && !authExpired ? (
           <div className="bg-white rounded-2xl p-7 text-center shadow-sm">
             <User size={32} className="text-silver mx-auto mb-2" />
             <div className="font-semibold text-brand-dark">No matching customer or location</div>
@@ -105,7 +110,7 @@ export default function CustomerSearch({ onSelectCustomer, onClose }: Props) {
         ) : null}
 
         <div className="space-y-2.5">
-          {results.map((customer) => {
+          {selectableResults.map((customer) => {
             const name = customer.customerName || customer.locationName
             return (
               <button key={customer.customerLocationId} onClick={() => onSelectCustomer(customer)} className="w-full bg-white rounded-2xl p-4 shadow-sm flex items-start gap-3 text-left active:scale-98 transition-all hover:shadow-md border border-transparent hover:border-surface">

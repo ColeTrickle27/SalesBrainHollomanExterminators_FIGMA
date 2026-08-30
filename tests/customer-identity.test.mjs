@@ -14,6 +14,7 @@ import {
   hasQuoteEngineQuoteContext,
   quoteEngineInputForSave,
 } from "../src/types/quote-engine.ts"
+import { isSelectableExistingCustomerIdentity } from "../src/types/customer.ts"
 
 const customerSearchSource = readFileSync(
   new URL("../src/screens/CustomerSearch.tsx", import.meta.url),
@@ -143,6 +144,35 @@ test("canonical identity service preserves unavailable PestPac numbers without f
   assert.equal(result.pestpacLocationNumber, null)
   assert.equal(result.billTo.billToNumber, "")
   assert.equal(result.location.locationNumber, "")
+  assert.equal(isSelectableExistingCustomerIdentity(result), false)
+})
+
+test("modern New Quote makes only complete permanent PestPac identities selectable", () => {
+  assert.equal(isSelectableExistingCustomerIdentity(identityResult()), true)
+  assert.equal(
+    isSelectableExistingCustomerIdentity(
+      identityResult({ identityState: "temporary" }),
+    ),
+    false,
+  )
+  assert.equal(
+    isSelectableExistingCustomerIdentity(
+      identityResult({ pestpacBillToNumber: null }),
+    ),
+    false,
+  )
+  assert.equal(
+    isSelectableExistingCustomerIdentity(
+      identityResult({ pestpacLocationNumber: "" }),
+    ),
+    false,
+  )
+  assert.equal(
+    isSelectableExistingCustomerIdentity(
+      identityResult({ locationId: "" }),
+    ),
+    false,
+  )
 })
 
 test("canonical identity service surfaces authentication, API, and malformed-response failures", async (t) => {
@@ -177,28 +207,57 @@ test("canonical identity service surfaces authentication, API, and malformed-res
   )
 })
 
-test("modern quote selection stores and safely replaces the canonical Location ID with its snapshots", () => {
+test("same PestPac snapshots attach a canonical Location ID without resetting quote work", () => {
   const first = identityResult()
-  const second = identityResult({
+  const historical = inspection({
+    billTo: first.billTo,
+    location: first.location,
+    customerLocationId: null,
+    quoteNotes: "Keep this quote note",
+    property: { graphKey: "property-graph" },
+    quoteEngineInput: { services: [{ lineId: "service-1" }], customLineItems: [{ lineId: "custom-1" }] },
+    quoteEngineSnapshot: { version: "opsbrain-quote-engine/v1" },
+  })
+
+  assert.equal(canonicalCustomerSelectionChanged(historical, first), false)
+  const updated = { ...historical, ...canonicalCustomerContext(first) }
+  assert.equal(updated.customerLocationId, "location-7001")
+  assert.equal(updated.quoteNotes, "Keep this quote note")
+  assert.deepEqual(updated.property, historical.property)
+  assert.deepEqual(updated.quoteEngineInput, historical.quoteEngineInput)
+  assert.deepEqual(updated.quoteEngineSnapshot, historical.quoteEngineSnapshot)
+
+  assert.equal(
+    canonicalCustomerSelectionChanged(
+      inspection({ ...canonicalCustomerContext(first) }),
+      first,
+    ),
+    false,
+  )
+})
+
+test("different Bill-To or Location keeps the safe property-change reset path", () => {
+  const first = identityResult()
+  const differentLocation = identityResult({
     locationId: "location-8002",
     locationName: "Second Location",
     serviceAddress: "22 Second Street, Raleigh, NC 27602",
     pestpacLocationNumber: "8002",
   })
-  const firstContext = canonicalCustomerContext(first)
-  const active = inspection(firstContext)
+  const differentBillTo = identityResult({
+    locationId: "location-9003",
+    billToId: "bill-to-9003",
+    pestpacBillToNumber: "9003",
+    pestpacLocationNumber: "7001",
+  })
+  const active = inspection(canonicalCustomerContext(first))
 
-  assert.equal(firstContext.customerLocationId, "location-7001")
-  assert.equal(firstContext.billTo.billToNumber, "5001")
-  assert.equal(firstContext.location.locationNumber, "7001")
-  assert.equal(firstContext.leadId, undefined)
-  assert.equal(canonicalCustomerSelectionChanged(active, first), false)
-  assert.equal(canonicalCustomerSelectionChanged(active, second), true)
-
-  const switched = { ...active, ...canonicalCustomerContext(second) }
-  assert.equal(switched.customerLocationId, "location-8002")
-  assert.equal(switched.location.locationNumber, "8002")
-  assert.notEqual(switched.customerLocationId, active.customerLocationId)
+  assert.equal(canonicalCustomerSelectionChanged(active, differentLocation), true)
+  assert.equal(canonicalCustomerSelectionChanged(active, differentBillTo), true)
+  assert.match(
+    customerSearchSource + readFileSync(new URL("../src/features/sales/useSalesWorkflow.ts", import.meta.url), "utf8"),
+    /quoteEngineSnapshot: undefined/,
+  )
 })
 
 test("save and reopen retain customerLocationId as a top-level quote field", async () => {
@@ -249,6 +308,8 @@ test("lead-only and historical null-link quotes remain valid", async () => {
 test("modern CustomerSearch exposes canonical lookup only and no manual mapping path", () => {
   assert.match(customerSearchSource, /createCustomerIdentityService/)
   assert.match(customerSearchSource, /searchCustomerIdentities/)
+  assert.match(customerSearchSource, /isSelectableExistingCustomerIdentity/)
+  assert.match(customerSearchSource, /selectableResults\.map/)
   assert.doesNotMatch(customerSearchSource, /createCustomerFilesService/)
   assert.doesNotMatch(customerSearchSource, /Create Ops Brain Mapping/)
   assert.doesNotMatch(customerSearchSource, /createBillTo|createLocation/)
