@@ -5,7 +5,12 @@ import test from "node:test"
 import {
   canonicalCustomerContext,
   canonicalCustomerSelectionChanged,
+  canonicalCustomerWorkflowDetails,
 } from "../src/features/sales/quoteWorkspace.ts"
+import {
+  customerSearchShortQueryState,
+  customerSearchStatusLabel,
+} from "../src/features/sales/customerSearchState.ts"
 import { OpsBrainAuthError } from "../src/services/opsBrain/errors.ts"
 import { HttpCustomerIdentityService } from "../src/services/opsBrain/httpCustomerIdentityService.ts"
 import { MockSalesBrainEstimatesService } from "../src/services/opsBrain/mockSalesBrainEstimatesService.ts"
@@ -72,6 +77,28 @@ function inspection(overrides = {}) {
     createdBy: "preview",
     createdAt: now,
     updatedAt: now,
+    ...overrides,
+  }
+}
+
+function workflowCustomer(overrides = {}) {
+  return {
+    leadType: "Existing Customer",
+    company: "",
+    first: "",
+    last: "",
+    phone: "",
+    email: "",
+    preferredContact: "",
+    referralSource: "",
+    referralSourceOther: "",
+    locationName: "",
+    streetAddress: "",
+    city: "",
+    state: "NC",
+    zip: "",
+    serviceAddress: "",
+    accountNotes: "",
     ...overrides,
   }
 }
@@ -227,6 +254,26 @@ test("same PestPac snapshots attach a canonical Location ID without resetting qu
   assert.deepEqual(updated.quoteEngineInput, historical.quoteEngineInput)
   assert.deepEqual(updated.quoteEngineSnapshot, historical.quoteEngineSnapshot)
 
+  const updatedCustomer = canonicalCustomerWorkflowDetails(
+    first,
+    workflowCustomer({
+      company: "Historic Bill-To Name",
+      first: "Morgan",
+      last: "Parker",
+      city: "Raleigh",
+      zip: "27601",
+      accountNotes: "Keep historical customer note",
+    }),
+    { preserveNameSnapshot: true },
+  )
+  assert.equal(updatedCustomer.company, "Historic Bill-To Name")
+  assert.equal(updatedCustomer.first, "Morgan")
+  assert.equal(updatedCustomer.last, "Parker")
+  assert.equal(updatedCustomer.phone, apiIdentity.phone)
+  assert.equal(updatedCustomer.email, apiIdentity.email)
+  assert.equal(updatedCustomer.streetAddress, apiIdentity.serviceAddress)
+  assert.equal(updatedCustomer.accountNotes, "Keep historical customer note")
+
   assert.equal(
     canonicalCustomerSelectionChanged(
       inspection({ ...canonicalCustomerContext(first) }),
@@ -234,6 +281,18 @@ test("same PestPac snapshots attach a canonical Location ID without resetting qu
     ),
     false,
   )
+})
+
+test("new canonical customer uses the canonical display name without inventing structured fields", () => {
+  const selected = canonicalCustomerWorkflowDetails(
+    identityResult(),
+    workflowCustomer(),
+  )
+
+  assert.equal(selected.company, apiIdentity.customerName)
+  assert.equal(selected.first, "")
+  assert.equal(selected.last, "")
+  assert.equal(Object.hasOwn(selected, "accountType"), false)
 })
 
 test("different Bill-To or Location keeps the safe property-change reset path", () => {
@@ -254,9 +313,52 @@ test("different Bill-To or Location keeps the safe property-change reset path", 
 
   assert.equal(canonicalCustomerSelectionChanged(active, differentLocation), true)
   assert.equal(canonicalCustomerSelectionChanged(active, differentBillTo), true)
+  const selected = canonicalCustomerWorkflowDetails(
+    differentLocation,
+    workflowCustomer({
+      company: "Old Customer",
+      first: "Old",
+      last: "Customer",
+      phone: "919-555-0000",
+      email: "old@example.test",
+      locationName: "Old Location",
+      streetAddress: "1 Old Street",
+      city: "Durham",
+      zip: "27701",
+      serviceAddress: "1 Old Street, Durham, NC 27701",
+      accountNotes: "Old customer note",
+    }),
+  )
+  assert.equal(selected.company, apiIdentity.customerName)
+  assert.equal(selected.first, "")
+  assert.equal(selected.last, "")
+  assert.equal(selected.phone, apiIdentity.phone)
+  assert.equal(selected.email, apiIdentity.email)
+  assert.equal(selected.locationName, "Second Location")
+  assert.equal(selected.streetAddress, "22 Second Street, Raleigh, NC 27602")
+  assert.equal(selected.city, "")
+  assert.equal(selected.zip, "")
+  assert.equal(selected.accountNotes, "")
   assert.match(
     customerSearchSource + readFileSync(new URL("../src/features/sales/useSalesWorkflow.ts", import.meta.url), "utf8"),
     /quoteEngineSnapshot: undefined/,
+  )
+})
+
+test("shortening a canonical search clears the loading status", () => {
+  const cleared = customerSearchShortQueryState()
+
+  assert.deepEqual(cleared.results, [])
+  assert.equal(cleared.loading, false)
+  assert.equal(cleared.error, null)
+  assert.equal(cleared.authExpired, false)
+  assert.equal(
+    customerSearchStatusLabel({
+      loading: cleared.loading,
+      query: "a",
+      resultCount: cleared.results.length,
+    }),
+    "Enter at least 2 characters",
   )
 })
 
