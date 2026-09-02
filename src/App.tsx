@@ -33,9 +33,11 @@ import JobCosting from "./screens/JobCosting"
 
 import ProposalPreview from "./screens/ProposalPreview"
 
-import QuoteHistory from "./screens/QuoteHistory"
+import QuoteHistory, { type QuoteAction } from "./screens/QuoteHistory"
 
-import QuoteWorkspace from "./screens/QuoteWorkspace"
+import QuoteWorkspace, {
+  type QuoteWorkspaceSection,
+} from "./screens/QuoteWorkspace"
 
 import {
   isQuoteEngineBackedQuote,
@@ -78,6 +80,7 @@ const HASH_SCREEN = Object.fromEntries(
 
 const NAV_ITEMS = [
   { id: "dashboard", icon: Home, label: "Home" },
+
   { id: "quote-history", icon: History, label: "Quotes" },
 
   { id: "admin-detail", icon: Settings, label: "Admin" },
@@ -92,11 +95,15 @@ export default function App() {
 
   const [screen, setScreen] = useState<Screen>(() => screenFromLocation())
 
-  const [customerSearchReturn, setCustomerSearchReturn] = useState<Screen>(
-    "dashboard",
-  )
+  const [customerSearchReturn, setCustomerSearchReturn] =
+    useState<Screen>(
+      "dashboard",
+    )
 
   const [isOffline, setIsOffline] = useState(false)
+
+  const [quoteWorkspaceSection, setQuoteWorkspaceSection] =
+    useState<QuoteWorkspaceSection>("quote")
 
   useEffect(() => {
     const onNavigation = () => setScreen(screenFromLocation())
@@ -144,6 +151,8 @@ export default function App() {
   const selectCustomer = (customer: CustomerIdentitySearchResult) => {
     workflow.selectCustomer(customer)
 
+    setQuoteWorkspaceSection("quote")
+
     go("quote-workspace")
   }
 
@@ -152,11 +161,37 @@ export default function App() {
 
     if (!opened) return
 
+    setQuoteWorkspaceSection("quote")
+
     go(isQuoteEngineBackedQuote(opened) ? "quote-workspace" : "job-costing")
+  }
+
+  const openEstimateAction = async (id: string, action: QuoteAction) => {
+    const opened = await workflow.openEstimate(id)
+
+    if (!opened) return
+
+    if (isQuoteEngineBackedQuote(opened)) {
+      setQuoteWorkspaceSection("delivery")
+      go("quote-workspace")
+      return
+    }
+
+    const legacyWorkflowData = normalizeSalesBrainWorkflowData(
+      opened.workflowData,
+    )
+    workflow.updateWorkflowData({
+      ...legacyWorkflowData,
+      currentStep: action === "signature" ? 8 : 7,
+    })
+
+    go(action === "view" || action === "download" ? "proposal" : "wizard")
   }
 
   const startQuoteForLead = (lead: SalesLead) => {
     workflow.startQuoteForLead(lead)
+
+    setQuoteWorkspaceSection("quote")
 
     go("quote-workspace")
   }
@@ -166,6 +201,7 @@ export default function App() {
   )
 
   const modernQuoteActive = isQuoteEngineBackedQuote(workflow.inspection)
+
   const quoteRoute: QuoteWorkspaceRoute | null =
     screen === "quote-workspace" ||
     screen === "wizard" ||
@@ -174,24 +210,31 @@ export default function App() {
     screen === "proposal"
       ? screen
       : null
+
   const quoteRouteRedirect = quoteRoute
     ? resolveQuoteWorkspaceRoute({
         route: quoteRoute,
+
         restoringEstimate: workflow.restoringEstimate,
+
         modernQuote: modernQuoteActive,
       })
     : null
+
   const renderQuoteWorkspace = quoteRoute
     ? shouldRenderQuoteWorkspace({
         route: quoteRoute,
+
         restoringEstimate: workflow.restoringEstimate,
+
         modernQuote: modernQuoteActive,
       })
     : false
+
   const activeQuoteLead = workflow.inspection.leadId
-    ? workflow.dashboardData?.leads.find(
+    ? (workflow.dashboardData?.leads.find(
         (lead) => lead.id === workflow.inspection.leadId,
-      ) ?? null
+      ) ?? null)
     : null
 
   useEffect(() => {
@@ -203,11 +246,17 @@ export default function App() {
 
     return (
       name
+
         .split(/\s+/)
+
         .filter(Boolean)
+
         .slice(0, 2)
+
         .map((part) => part[0])
+
         .join("")
+
         .toUpperCase() || "—"
     )
   }, [workflow.currentUser?.name])
@@ -234,7 +283,9 @@ export default function App() {
         onClose={() => go("wizard")}
         onContinue={() => {
           workflow.updateWorkflowData({ ...workflowData, currentStep: 7 })
+
           void workflow.saveEstimate()
+
           go("wizard")
         }}
       />
@@ -355,6 +406,7 @@ export default function App() {
             onRefresh={() =>
               void Promise.all([
                 workflow.loadEstimates(),
+
                 workflow.refreshOperations(),
               ])
             }
@@ -392,10 +444,12 @@ export default function App() {
             saveError={workflow.saveError}
             onPresentation={() => {
               void workflow.saveEstimate()
+
               go("presentation")
             }}
             onProposal={() => {
               void workflow.saveEstimate()
+
               go("proposal")
             }}
             onOpenGraph={workflow.openBugmanGraphsChoice}
@@ -457,6 +511,17 @@ export default function App() {
             onChangeCustomer={changeCustomer}
             lead={activeQuoteLead}
             onUpdateLead={workflow.updateActiveQuoteLead}
+            initialSection={quoteWorkspaceSection}
+            generatedDocuments={workflow.generatedDocuments}
+            deliveries={workflow.deliveries}
+            signatureRequest={workflow.signatureRequest}
+            employeeProfile={workflow.employeeProfile}
+            providerActionLoading={workflow.providerActionLoading}
+            onLoadProviderState={workflow.loadProviderState}
+            onCreateDocument={workflow.createCustomerDocument}
+            onSendDelivery={workflow.sendCustomerDocument}
+            onRequestSignature={workflow.requestCustomerSignature}
+            onCreateProposalPdf={workflow.createProposalPdf}
           />
         ) : null}
         {!workflow.restoringEstimate &&
@@ -494,10 +559,12 @@ export default function App() {
             error={workflow.estimatesError}
             metrics={workflow.dashboardData?.metrics}
             onOpen={(id) => void openEstimate(id)}
+            onAction={(id, action) => void openEstimateAction(id, action)}
             onDelete={workflow.deleteEstimate}
             onRefresh={() =>
               void Promise.all([
                 workflow.loadEstimates(),
+
                 workflow.refreshOperations(),
               ])
             }
@@ -512,6 +579,7 @@ export default function App() {
             onRefresh={() =>
               void Promise.all([
                 workflow.refreshPricebook(),
+
                 workflow.refreshOperations(),
               ])
             }
@@ -546,7 +614,9 @@ export default function App() {
         <div className="flex items-center justify-around px-1 py-2 lg:px-4 lg:gap-3">
           {NAV_ITEMS.map((item) => {
             const active = screen === item.id
+
             const Icon = item.icon
+
             return (
               <button
                 key={item.id}
