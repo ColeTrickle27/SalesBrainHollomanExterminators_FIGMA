@@ -349,6 +349,7 @@ export default function App() {
             loading={workflow.estimatesLoading || workflow.operationsLoading}
             error={workflow.estimatesError || workflow.operationsError}
             leadActivities={workflow.leadActivities}
+            services={workflow.pricebookServices}
             onStartInspection={beginCustomerSearch}
             onOpenEstimate={(id) => void openEstimate(id)}
             onDeleteEstimate={workflow.deleteEstimate}

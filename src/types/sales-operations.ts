@@ -27,6 +27,11 @@ export interface SalesLead {
   notes: string
   billToNumber?: string
   locationNumber?: string
+  customerType?: "" | "Residential" | "Commercial"
+  contactName?: string
+  contactPhone?: string
+  serviceIds?: string[]
+  nextTouchPoint?: "" | "Contact" | "Inspect" | "Send Quote" | "Follow-Up" | "X-Date"
   nextFollowUpAt?: string
   createdBy: string
   createdAt: string

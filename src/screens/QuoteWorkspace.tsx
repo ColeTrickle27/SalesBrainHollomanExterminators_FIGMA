@@ -186,6 +186,7 @@ export default function QuoteWorkspace(props: QuoteWorkspaceProps) {
       {leadEditorOpen && props.lead ? (
         <LeadEditModal
           lead={props.lead}
+          services={props.pricebookServices}
           onClose={() => setLeadEditorOpen(false)}
           onSave={async (input) => {
             await props.onUpdateLead(input)
