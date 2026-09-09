@@ -13,7 +13,9 @@ export function createBugManGraphsService(): BugManGraphsService {
   if (import.meta.env.PROD || import.meta.env.VITE_BUGMAN_GRAPHS_MODE === "http") {
     return new HttpBugManGraphsService({
       baseUrl: import.meta.env.VITE_OPS_BRAIN_BASE_URL ?? "",
-      editorUrl: import.meta.env.VITE_BUGMAN_GRAPHS_URL ?? "https://graphs.holloman-ext.com",
+      editorUrl: import.meta.env.VITE_BUGMAN_GRAPHS_URL ?? (import.meta.env.BASE_URL === "/sales-brain/"
+        ? new URL("/bugman-graphs/", window.location.origin).href
+        : "https://graphs.holloman-ext.com"),
     });
   }
   return new MockBugManGraphsService();
