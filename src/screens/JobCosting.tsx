@@ -1376,7 +1376,7 @@ function CostingEditor({
       <div className="bg-amber-light border border-amber/25 rounded-xl p-3 text-xs text-amber">
         <Lock size={14} className="inline mr-2" />
         Internal costs never appear in customer presentation, PDFs, Gmail
-        attachments, or BoldSign agreements.
+        attachments, or signed agreements.
       </div>
     </div>
   )

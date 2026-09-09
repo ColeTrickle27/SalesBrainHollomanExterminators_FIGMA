@@ -110,7 +110,7 @@ export class MockSalesBrainEstimatesService
   }
   async listDeliveries(id: string) { return clone(this.deliveries.get(id) || []) }
   async createSignatureRequest(id: string, input: { customerEmail: string; customerName: string; selectedOptionId: string; message: string; idempotencyKey: string }) {
-    const request: SalesSignatureRequest = { id: crypto.randomUUID(), quoteId: id, provider: "boldsign", status: "pending", customerEmail: input.customerEmail, selectedOptionId: input.selectedOptionId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+    const request: SalesSignatureRequest = { id: crypto.randomUUID(), quoteId: id, provider: "signwell", signatureEnvelopeId: `sig-${crypto.randomUUID()}`, status: "pending", customerEmail: input.customerEmail, selectedOptionId: input.selectedOptionId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
     this.signatures.set(id, request)
     return { signatureRequest: request, duplicate: false }
   }

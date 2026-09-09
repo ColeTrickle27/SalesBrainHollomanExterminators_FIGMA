@@ -260,6 +260,19 @@ test("restored and explicitly reopened quotes use the persisted save time", () =
   assert.match(workspaceSource, /Not saved yet/)
 })
 
+test("Delivery keeps Send for Signature clear of the fixed draft footer", () => {
+  assert.match(workspaceSource, /section !== "delivery" \? \(/)
+  assert.match(workspaceSource, /Send for Signature/)
+})
+
+test("Delivery refreshes pending signatures and exposes completed agreement files", () => {
+  assert.match(workspaceSource, /30_000/)
+  assert.match(workspaceSource, /Check signature status/)
+  assert.match(workspaceSource, /Download Signed Agreement/)
+  assert.match(workspaceSource, /View Audit Trail/)
+  assert.match(workspaceSource, /saved in this customer's files/)
+})
+
 test("customer summary uses employee-facing context actions and warning", () => {
   assert.match(customerSummarySource, /"Edit Lead"/)
   assert.match(customerSummarySource, /"Change Customer"/)

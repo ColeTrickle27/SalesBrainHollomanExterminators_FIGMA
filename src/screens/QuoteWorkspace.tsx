@@ -218,34 +218,36 @@ export default function QuoteWorkspace(props: QuoteWorkspaceProps) {
         />
       ) : null}
 
-      <div className="fixed bottom-16 left-0 right-0 z-20 border-t border-surface bg-white px-3 py-3">
-        <div className="max-w-6xl mx-auto">
-          <button
-            type="button"
-            onClick={props.onSave}
-            disabled={
-              !readiness.saveEligible ||
-              props.isSaving ||
-              props.quoteEngineCalculating
-            }
-            className="w-full rounded-xl bg-brand-red py-3 text-white font-display text-lg font-bold uppercase disabled:opacity-50"
-          >
-            <Save size={17} className="inline mr-2" />
-            {props.isSaving ? "Saving…" : "Save Draft"}
-          </button>
-          {!readiness.hasContext ? (
-            <div className="mt-1.5 text-xs text-amber">
-              Select a customer or start from a SalesBrain lead before saving.
-            </div>
-          ) : !readiness.hasLines ? (
-            <div className="mt-1.5 text-xs text-amber">
-              Add a service or custom item before saving this quote.
-            </div>
-          ) : props.saveError ? (
-            <div className="mt-1.5 text-xs text-danger">{props.saveError}</div>
-          ) : null}
+      {section !== "delivery" ? (
+        <div className="fixed bottom-16 left-0 right-0 z-20 border-t border-surface bg-white px-3 py-3">
+          <div className="max-w-6xl mx-auto">
+            <button
+              type="button"
+              onClick={props.onSave}
+              disabled={
+                !readiness.saveEligible ||
+                props.isSaving ||
+                props.quoteEngineCalculating
+              }
+              className="w-full rounded-xl bg-brand-red py-3 text-white font-display text-lg font-bold uppercase disabled:opacity-50"
+            >
+              <Save size={17} className="inline mr-2" />
+              {props.isSaving ? "Saving…" : "Save Draft"}
+            </button>
+            {!readiness.hasContext ? (
+              <div className="mt-1.5 text-xs text-amber">
+                Select a customer or start from a SalesBrain lead before saving.
+              </div>
+            ) : !readiness.hasLines ? (
+              <div className="mt-1.5 text-xs text-amber">
+                Add a service or custom item before saving this quote.
+              </div>
+            ) : props.saveError ? (
+              <div className="mt-1.5 text-xs text-danger">{props.saveError}</div>
+            ) : null}
+          </div>
         </div>
-      </div>
+      ) : null}
       {leadEditorOpen && props.lead ? (
         <LeadEditModal
           lead={props.lead}
@@ -329,6 +331,21 @@ function QuoteDeliveryPanel({
   useEffect(() => {
     void onLoad()
   }, [inspection.id, onLoad])
+
+  useEffect(() => {
+    if (
+      !signatureRequest ||
+      ["completed", "declined", "expired", "send_failed", "revoked"].includes(
+        signatureRequest.status,
+      )
+    ) {
+      return
+    }
+    const refreshTimer = window.setInterval(() => {
+      void onLoad()
+    }, 30_000)
+    return () => window.clearInterval(refreshTimer)
+  }, [onLoad, signatureRequest?.id, signatureRequest?.status])
 
   const run = async (work: () => Promise<void>, success: string) => {
     setNotice("")
@@ -522,8 +539,8 @@ function QuoteDeliveryPanel({
               Send for Signature
             </h2>
             <p className="mt-1 text-sm text-steel">
-              BoldSign sends the agreement and reports its verified status back
-              to SalesBrain.
+              The Holloman Signature Service sends through SignWell and reports
+              verified status back to SalesBrain. Employees do not need a SignWell login.
             </p>
           </div>
         </div>
@@ -539,7 +556,7 @@ function QuoteDeliveryPanel({
                   "Please review and sign the attached Holloman Exterminators service agreement.",
                 idempotencyKey: crypto.randomUUID(),
               })
-            }, "BoldSign request created. SalesBrain will update status when BoldSign reports it.")
+            }, "Signature request created. SalesBrain will update status when SignWell reports it.")
           }
           disabled={
             loading ||
@@ -551,7 +568,7 @@ function QuoteDeliveryPanel({
           className="mt-4 w-full rounded-xl bg-brand-red px-3 py-3 text-sm font-bold text-white disabled:opacity-50"
         >
           <FileSignature size={16} className="mr-2 inline" />
-          Send for Signature through BoldSign
+          Send for Signature
         </button>
         {!selectedOptionId ? (
           <p className="mt-3 text-xs text-amber">
@@ -559,15 +576,56 @@ function QuoteDeliveryPanel({
           </p>
         ) : null}
         {signatureRequest ? (
-          <p className="mt-3 text-xs text-brand-dark">
-            BoldSign status:{" "}
-            <strong className="uppercase">
-              {signatureRequest.status.replace("_", " ")}
-            </strong>
-            {signatureRequest.providerDocumentId
-              ? ` · Document ${signatureRequest.providerDocumentId}`
-              : ""}
-          </p>
+          <div className="mt-3 space-y-2 text-xs text-brand-dark">
+            <p>
+              Signature status:{" "}
+              <strong className="uppercase">
+                {signatureRequest.status.replace("_", " ")}
+              </strong>
+              {signatureRequest.providerDocumentId
+                ? ` · Document ${signatureRequest.providerDocumentId}`
+                : ""}
+            </p>
+            {signatureRequest.status === "completed" &&
+            signatureRequest.signedAgreementUrl ? (
+              <div className="flex flex-wrap gap-2">
+                <a
+                  href={signatureRequest.signedAgreementUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex rounded-lg border border-surface px-3 py-2 text-xs font-bold text-brand-dark"
+                >
+                  <Download size={14} className="mr-2" />
+                  Download Signed Agreement
+                </a>
+                {signatureRequest.auditTrailUrl ? (
+                  <a
+                    href={signatureRequest.auditTrailUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex rounded-lg border border-surface px-3 py-2 text-xs font-bold text-brand-dark"
+                  >
+                    <FileText size={14} className="mr-2" />
+                    View Audit Trail
+                  </a>
+                ) : null}
+              </div>
+            ) : null}
+            {signatureRequest.status === "completed" ? (
+              <p className="text-success">
+                The signed agreement and audit trail are saved in this customer's files.
+              </p>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void onLoad()}
+                disabled={loading}
+                className="font-semibold text-brand-dark underline disabled:opacity-50"
+              >
+                Check signature status
+              </button>
+            )}
+          </div>
         ) : null}
       </div>
 

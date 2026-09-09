@@ -177,11 +177,14 @@ export interface SalesDeliveryInput {
 export interface SalesSignatureRequest {
   id: string
   quoteId: string
-  provider: "boldsign"
+  provider: "boldsign" | "signwell"
+  signatureEnvelopeId?: string
   providerDocumentId?: string
   status: "pending" | "sent" | "viewed" | "signed" | "completed" | "declined" | "expired" | "send_failed" | "revoked"
   customerEmail: string
   selectedOptionId: string
+  signedAgreementUrl?: string
+  auditTrailUrl?: string
   createdAt: string
   updatedAt: string
 }
@@ -196,6 +199,8 @@ export interface PestPacHandoff {
   agreementDate: string
   signatureDate: string
   boldSignDocumentId: string
+  signatureEnvelopeId?: string
+  signatureProvider?: "boldsign" | "signwell"
   signedAgreementR2Key: string
   auditTrailR2Key: string
   checklist: {
