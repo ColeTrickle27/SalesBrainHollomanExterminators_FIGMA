@@ -27,6 +27,8 @@ import type { InspectionFinding } from "../../types/findings"
 import type { PropertyInspection } from "../../types/property"
 
 import type { SalesInspection } from "../../types/sales-inspection"
+import { createCustomerIdentityService } from "../../services/opsBrain"
+import { exactGraphReportIdentity, verifyGraphReportOwnership, type GraphReportContext } from "./graphReportIntake"
 import {
   createEmptyQuoteEngineInput,
   customerPricingSnapshotFromQuoteEngine,
@@ -359,6 +361,8 @@ export function useSalesWorkflow() {
   )
 
   const estimatesServiceRef = useRef<SalesBrainEstimatesService | null>(null)
+  const graphIntakeInspectionRef = useRef(inspection)
+  graphIntakeInspectionRef.current = inspection
 
   const pricebookServiceRef = useRef<SalesBrainPricebookService | null>(null)
   const quoteEngineServiceRef = useRef<QuoteEngineService | null>(null)
@@ -1354,9 +1358,9 @@ export function useSalesWorkflow() {
    * dismissed graph photos. A graph refresh is optional and never clears a
    * manually entered note/photo when it fails. */
 
-  const importGraphData = async (graphKey: string) => {
+  const importGraphData = async (graphKey: string, loaded?: [Awaited<ReturnType<BugManGraphsService["getMarkers"]>>, Awaited<ReturnType<BugManGraphsService["getPhotos"]>>]) => {
     try {
-      const [markers, graphPhotos] = await Promise.all([
+      const [markers, graphPhotos] = loaded ?? await Promise.all([
         graphServiceRef.current!.getMarkers(graphKey),
 
         graphServiceRef.current!.getPhotos(graphKey),
@@ -2700,7 +2704,23 @@ export function useSalesWorkflow() {
     }
   }
 
+  const startQuoteFromGraphReport = async (context: GraphReportContext) => {
+    // Validate and load everything before replacing the active in-memory draft.
+    const identity = exactGraphReportIdentity(await createCustomerIdentityService().searchCustomerIdentities(context.billToNumber), context)
+    verifyGraphReportOwnership(await graphServiceRef.current!.listGraphsForProperty(context), context)
+    const loaded = await Promise.all([graphServiceRef.current!.getMarkers(context.graphKey), graphServiceRef.current!.getPhotos(context.graphKey)])
+    if (graphIntakeInspectionRef.current !== inspection) throw new Error("Your current quote changed while the graph was loading. Review your work, then try again.")
+    const fresh = createEmptySalesInspection(currentUser?.username ?? "unassigned")
+    const contextual = { ...fresh, ...canonicalCustomerContext(identity), workflowData: normalizeSalesBrainWorkflowData({ ...fresh.workflowData, customer: canonicalCustomerWorkflowDetails(identity, normalizeSalesBrainWorkflowData(fresh.workflowData).customer) }) }
+    startNewEstimate()
+    setInspection({ ...contextual, quoteEngineInput: createEmptyQuoteEngineInput(quoteEngineContextFor(contextual, currentUser)) })
+    writeLastOpenEstimateId(contextual.id)
+    setWorkspaceGraphKey(context.graphKey)
+    await importGraphData(context.graphKey, loaded)
+  }
+
   return {
+    startQuoteFromGraphReport,
     activeNavItem,
 
     setActiveNavItem,
