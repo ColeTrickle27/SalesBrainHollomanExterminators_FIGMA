@@ -19,7 +19,7 @@ export function additionalQuoteInspection(saved: SalesInspection, fresh: SalesIn
   return { ...fresh, billTo: saved.billTo, location: saved.location, customerLocationId: saved.customerLocationId, leadId: saved.leadId,
     property: saved.property, markers: saved.markers, findings: saved.findings, photos: saved.photos,
     excludedGraphPhotoIds: saved.excludedGraphPhotoIds, dismissedGraphFindingIds: saved.dismissedGraphFindingIds, hiddenFindingIds: saved.hiddenFindingIds,
-    workflowData: { ...workflow, workspaceMode: "modern", customerGraphImage: undefined, quoteOptions: [], selectedQuoteOptionId: "", customerDecision: undefined, acceptance: { captured: false, printedName: "", signedAt: "", acknowledgements: [] } },
+    workflowData: { ...workflow, workspaceMode: "modern", customerGraphImage: undefined, reportPhotoImages: undefined, quoteOptions: [], selectedQuoteOptionId: "", customerDecision: undefined, acceptance: { captured: false, printedName: "", signedAt: "", acknowledgements: [] } },
   }
 }
 

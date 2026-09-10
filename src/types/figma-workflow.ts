@@ -143,6 +143,7 @@ export interface SalesBrainAcceptanceDetails {
  */
 export interface SalesBrainWorkflowData {
   workspaceMode?: "modern"
+  reportPhotoImages?: Array<{ photoId: string; sourceStorageKey: string; storageKey: string }>
   customerGraphImage?: { storageKey: string; sourceGraphKey: string }
   customerDecision?: { status: "accepted" | "pending" | "declined"; note?: string; decidedAt: string }
   version: 1 | 2 | 3 | 4

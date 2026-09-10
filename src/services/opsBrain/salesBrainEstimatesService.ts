@@ -124,6 +124,8 @@ export interface SalesBrainEstimatesService {
     input: PestPacHandoff & { complete?: boolean },
   ): Promise<PestPacHandoff>
 
+  getPhotoBlob(photo: PhotoReference): Promise<Blob>
+
   copyPhotoToEstimate(photo: PhotoReference, estimateId: string): Promise<PhotoReference>
 
   uploadPhoto(estimateId: string, file: File): Promise<PhotoReference>

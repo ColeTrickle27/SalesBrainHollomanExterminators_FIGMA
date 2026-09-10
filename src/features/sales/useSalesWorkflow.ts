@@ -1,3 +1,5 @@
+import { reportImageJpeg } from "./reportGraphImage"
+import { prepareReportPhotoImages } from "./reportPhotoImages"
 import { exportCustomerGraph } from "./exportCustomerGraph"
 import { additionalQuoteInspection, customerDecisionInspection, customerSaveIssue } from "./customerReview"
 import { customerQuoteNumber } from "./quoteNumber"
@@ -566,6 +568,11 @@ export function useSalesWorkflow() {
 
     setOperationsError(null)
 
+    // Sender availability must not depend on unrelated catalog or dashboard requests.
+    const employeeRefresh = operationsServiceRef.current!.getMyEmployeeProfile()
+      .then((employee) => setEmployeeProfile(employee))
+      .catch(() => setOperationsError((current) => current || "Your Gmail sender profile could not be refreshed. Please try again."))
+
     try {
       const [
         dashboard,
@@ -574,7 +581,6 @@ export function useSalesWorkflow() {
         laborRows,
         settings,
         packageRows,
-        employee,
       ] = await Promise.all([
         operationsServiceRef.current!.loadDashboard(),
 
@@ -587,8 +593,6 @@ export function useSalesWorkflow() {
         operationsServiceRef.current!.getCostingSettings(),
 
         operationsServiceRef.current!.listServicePackages(),
-
-        operationsServiceRef.current!.getMyEmployeeProfile(),
       ])
 
       setDashboardData({ ...dashboard, leads: allLeads })
@@ -600,8 +604,6 @@ export function useSalesWorkflow() {
       setCostingSettings(settings)
 
       setServicePackages(packageRows)
-
-      setEmployeeProfile(employee)
     } catch (error) {
       setOperationsError(
         error instanceof Error
@@ -609,6 +611,7 @@ export function useSalesWorkflow() {
           : "Could not load Sales Brain operating data.",
       )
     } finally {
+      await employeeRefresh
       setOperationsLoading(false)
     }
   }, [])
@@ -1972,15 +1975,25 @@ export function useSalesWorkflow() {
     if (!saved) throw new Error("Save the inspection before creating its document.")
     if (type !== "inspection-report" && type !== "bundle") return
     const sourceAfterSave = graphIntakeInspectionRef.current
+    const assertCurrent = () => { if (graphIntakeInspectionRef.current !== sourceAfterSave) throw new Error("Your inspection changed while preparing report images. Please try again. Your latest work is still here.") }
     const image = await exportCustomerGraph(saved)
-    if (graphIntakeInspectionRef.current !== sourceAfterSave) throw new Error("Your inspection changed while preparing the graph. Please try again.")
+    assertCurrent()
+    let customerGraphImage = undefined
     if (image && saved.property?.graphKey) {
-      const uploaded = await estimatesServiceRef.current!.uploadPhoto(saved.id, new File([image], "Structure graph.png", { type: "image/png" }))
-      if (graphIntakeInspectionRef.current !== sourceAfterSave) throw new Error("Your inspection changed while saving the graph. Please try again.")
+      const uploaded = await estimatesServiceRef.current!.uploadPhoto(saved.id, new File([image], "Structure graph.jpg", { type: "image/jpeg" }))
+      assertCurrent()
       if (!uploaded.storageKey) throw new Error("The graph image could not be saved. Please try again.")
-      await saveEstimate({ required: true, inspection: { ...sourceAfterSave, workflowData: { ...normalizeSalesBrainWorkflowData(sourceAfterSave.workflowData), customerGraphImage: { storageKey: uploaded.storageKey, sourceGraphKey: saved.property.graphKey } } } })
-    } else if (sourceAfterSave.workflowData?.customerGraphImage) {
-      await saveEstimate({ required: true, inspection: { ...sourceAfterSave, workflowData: { ...normalizeSalesBrainWorkflowData(sourceAfterSave.workflowData), customerGraphImage: undefined } } })
+      customerGraphImage = { storageKey: uploaded.storageKey, sourceGraphKey: saved.property.graphKey }
+    }
+    const reportPhotoImages = await prepareReportPhotoImages(sourceAfterSave, {
+      load: (photo) => estimatesServiceRef.current!.getPhotoBlob(photo),
+      convert: reportImageJpeg,
+      upload: (file) => estimatesServiceRef.current!.uploadPhoto(saved.id, file),
+      assertCurrent,
+    })
+    assertCurrent()
+    if (image || sourceAfterSave.workflowData?.customerGraphImage || JSON.stringify(reportPhotoImages) !== JSON.stringify(sourceAfterSave.workflowData?.reportPhotoImages || [])) {
+      await saveEstimate({ required: true, inspection: { ...sourceAfterSave, workflowData: { ...normalizeSalesBrainWorkflowData(sourceAfterSave.workflowData), customerGraphImage, reportPhotoImages } } })
     }
   }
 

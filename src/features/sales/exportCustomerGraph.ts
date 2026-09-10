@@ -1,3 +1,4 @@
+import { reportGraphJpeg } from "./reportGraphImage"
 import { createBugManGraphsService } from "../../services/bugmanGraphs"
 import type { SalesInspection } from "../../types/sales-inspection"
 import { customerReviewContent } from "./customerReview"
@@ -31,16 +32,21 @@ export async function exportCustomerGraph(inspection: SalesInspection): Promise<
     let timer: ReturnType<typeof setInterval>
     const cleanup = () => { clearInterval(timer); clearTimeout(timeout); window.removeEventListener("message", receive); frame.remove(); notice.remove() }
     const fail = (message: string) => { cleanup(); reject(new Error(message)) }
-    const receive = (event: MessageEvent) => {
+    let converting = false
+    const receive = async (event: MessageEvent) => {
+      if (converting) return
       if (event.source !== frame.contentWindow || event.origin !== url.origin || event.data?.requestId !== requestId || event.data?.graphKey !== graphKey) return
       if (event.data.type === "bugman-graph:presentation-error") { fail("The graph could not be prepared. Your inspection is saved; open the graph and try again."); return }
       if (event.data.type !== "bugman-graph:presentation-png") return
+      converting = true
+      clearInterval(timer)
       const encoded = event.data.pngBase64
       if (typeof encoded !== "string" || encoded.length > 14_000_000) { fail("The graph image is too large to include in this report."); return }
       try {
         const bytes = Uint8Array.from(atob(encoded), character => character.charCodeAt(0))
         if (bytes.length < 8 || bytes[0] !== 137 || bytes[1] !== 80 || bytes[2] !== 78 || bytes[3] !== 71) throw new Error("Invalid image")
-        cleanup(); resolve(new Blob([bytes], {type:"image/png"}))
+        const reportImage = await reportGraphJpeg(new Blob([bytes], { type: "image/png" }))
+        cleanup(); resolve(reportImage)
       } catch { fail("The graph image could not be read. Please try again.") }
     }
     const timeout = setTimeout(() => fail("The graph export timed out. Your inspection is saved; check your connection and try again."), 45000)

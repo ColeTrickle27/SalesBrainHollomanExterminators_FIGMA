@@ -119,6 +119,8 @@ export class MockSalesBrainEstimatesService
   async getPestPacHandoff(id: string) { return clone(this.handoffs.get(id) || null) }
   async savePestPacHandoff(id: string, input: PestPacHandoff & { complete?: boolean }) { const handoff = { ...input, quoteId: id, status: input.complete ? "completed" as const : "pending" as const }; this.handoffs.set(id, handoff); return clone(handoff) }
 
+  async getPhotoBlob(_photo: PhotoReference): Promise<Blob> { throw new Error("Report photo preparation requires connected OpsBrain storage.") }
+
   async copyPhotoToEstimate(photo: PhotoReference, estimateId: string) { return { ...clone(photo), storageKey: photo.source === "sales-brain" ? `sales-brain/photos/${estimateId}/${photo.id}` : photo.storageKey } }
 
   async uploadPhoto(estimateId: string, file: File): Promise<PhotoReference> {
