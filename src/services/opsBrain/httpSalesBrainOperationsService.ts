@@ -35,6 +35,8 @@ export class HttpSalesBrainOperationsService implements SalesBrainOperationsServ
   }
 
   async loadDashboard() { return (await this.request<{ dashboard: SalesDashboardData }>("/sales-brain/dashboard")).dashboard }
+  async listLeadIntakeIssues() { return (await this.request<{ issues: import("../../types/sales-operations").LeadIntakeIssue[] }>("/sales-brain/lead-intake-issues")).issues }
+  async listLeadAssignees() { return (await this.request<{ employees: import("../../types/sales-operations").LeadAssignee[] }>("/sales-brain/lead-assignees")).employees }
   async listLeads() { return (await this.request<{ leads: SalesLead[] }>("/sales-brain/leads")).leads }
   async createLead(input: LeadInput) { return (await this.request<{ lead: SalesLead }>("/sales-brain/leads", { method: "POST", body: JSON.stringify(input) })).lead }
   async updateLead(id: string, input: Partial<LeadInput>) { return (await this.request<{ lead: SalesLead }>(`/sales-brain/leads/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(input) })).lead }

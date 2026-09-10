@@ -149,6 +149,7 @@ export default function App() {
       screen === "job-costing"
     )
       void workflow.loadEstimates()
+    if (screen === "dashboard") void workflow.refreshOperations()
   }, [screen])
 
   const go = (next: Screen) => {
@@ -434,6 +435,7 @@ export default function App() {
             data={workflow.dashboardData}
             loading={workflow.estimatesLoading || workflow.operationsLoading}
             error={workflow.estimatesError || workflow.operationsError}
+            onLoadAssignees={workflow.loadLeadAssignees}
             leadActivities={workflow.leadActivities}
             services={workflow.pricebookServices}
             onStartInspection={beginCustomerSearch}
@@ -544,6 +546,10 @@ export default function App() {
             onQuoteNotesChange={workflow.updateQuoteNotes}
             onQuoteEngineInputChange={workflow.updateQuoteEngineInput}
             onSave={() => void workflow.saveEstimate()}
+            onResumeSignature={workflow.resumeCustomerSignature}
+            onPersist={() => workflow.saveEstimate({ required: true })}
+            onCustomerDecision={workflow.saveCustomerDecision}
+            onCreateAdditionalQuote={workflow.createAdditionalQuote}
             onChangeCustomer={changeCustomer}
             lead={activeQuoteLead}
             onUpdateLead={workflow.updateActiveQuoteLead}
@@ -608,6 +614,7 @@ export default function App() {
         ) : null}
         {screen === "admin-detail" ? (
           <AdminDetail
+            onLoadLeadIntakeIssues={workflow.loadLeadIntakeIssues}
             services={workflow.pricebookServices}
             loading={workflow.pricebookLoading}
             error={workflow.pricebookError}

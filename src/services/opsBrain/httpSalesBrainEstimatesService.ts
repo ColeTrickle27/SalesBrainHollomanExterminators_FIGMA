@@ -125,8 +125,12 @@ export class HttpSalesBrainEstimatesService
     return (await this.request<{ deliveries: import("../../types/sales-operations").SalesDeliveryEvent[] }>(`/sales-brain/estimates/${encodeURIComponent(id)}/deliveries`)).deliveries
   }
 
-  async createSignatureRequest(id: string, input: { customerEmail: string; customerName: string; selectedOptionId: string; message: string; idempotencyKey: string }) {
-    return this.request<{ signatureRequest: import("../../types/sales-operations").SalesSignatureRequest; duplicate: boolean }>(`/sales-brain/estimates/${encodeURIComponent(id)}/signature-request`, { method: "POST", body: JSON.stringify(input) })
+  async createSignatureRequest(id: string, input: { deliveryMode?: "email" | "in_person"; customerEmail: string; customerName: string; selectedOptionId: string; message: string; idempotencyKey: string }) {
+    return this.request<{ signatureRequest: import("../../types/sales-operations").SalesSignatureRequest; duplicate: boolean; signingUrl?: string }>(`/sales-brain/estimates/${encodeURIComponent(id)}/signature-request`, { method: "POST", body: JSON.stringify(input) })
+  }
+
+  async getSignatureSigningUrl(id: string) {
+    return this.request<{ signingUrl: string }>(`/sales-brain/estimates/${encodeURIComponent(id)}/signature-request/signing-url`)
   }
 
   async getSignatureRequest(id: string) {
@@ -139,6 +143,18 @@ export class HttpSalesBrainEstimatesService
 
   async savePestPacHandoff(id: string, input: import("../../types/sales-operations").PestPacHandoff & { complete?: boolean }) {
     return (await this.request<{ handoff: import("../../types/sales-operations").PestPacHandoff }>(`/sales-brain/estimates/${encodeURIComponent(id)}/pestpac-handoff`, { method: "PATCH", body: JSON.stringify(input) })).handoff
+  }
+
+  async copyPhotoToEstimate(photo: PhotoReference, estimateId: string): Promise<PhotoReference> {
+    if (photo.source !== "sales-brain") return photo
+    const parts = /^sales-brain\/photos\/([^/]+)\/([^/]+)$/.exec(photo.storageKey || "")
+    if (!parts) throw new Error("This inspection photo cannot be copied. Open the original quote and check its photo.")
+    const response = await fetch(this.config.baseUrl + "/api/sales-brain/photos/" + encodeURIComponent(parts[1]) + "/" + encodeURIComponent(parts[2]), { credentials: "include" })
+    if (!response.ok) throw new Error("An inspection photo could not be copied. Your original quote is unchanged.")
+    const blob = await response.blob()
+    if (!blob.type.startsWith("image/")) throw new Error("The stored inspection photo could not be read.")
+    const uploaded = await this.uploadPhoto(estimateId, new File([blob], "Inspection photo", { type: blob.type }))
+    return { ...photo, ...uploaded, id: photo.id, caption: photo.caption, customerVisible: photo.customerVisible, findingIds: photo.findingIds }
   }
 
   async uploadPhoto(estimateId: string, file: File): Promise<PhotoReference> {

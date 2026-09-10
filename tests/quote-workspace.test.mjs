@@ -378,24 +378,13 @@ test("Bill-To plus Location quote context is valid", () => {
   assert.equal(readiness.ready, true)
 })
 
-test("context with zero lines cannot save", () => {
-  const readiness = getQuoteWorkspaceReadiness({
-    inspection: { leadId: "lead-1", quoteEngineInput: emptyInput },
-    calculation: null,
-    calculating: false,
-  })
+test("inspection context with zero quote lines can save without being quote-ready", () => {
+  const readiness = getQuoteWorkspaceReadiness({ inspection: { leadId: "lead-1", quoteEngineInput: emptyInput }, calculation: null, calculating: false })
   assert.equal(readiness.hasContext, true)
   assert.equal(readiness.hasLines, false)
-  assert.equal(readiness.saveEligible, false)
-  assert.match(workspaceSource, /!readiness\.saveEligible/)
-  assert.match(
-    workspaceSource,
-    /Add a service or custom item before saving this quote\./,
-  )
-  assert.match(
-    workflowSource,
-    /!quoteEngineInputHasLines\(inspection\.quoteEngineInput\)/,
-  )
+  assert.equal(readiness.saveEligible, true)
+  assert.equal(readiness.ready, false)
+  assert.match(workflowSource, /currentInput && quoteEngineInputHasLines\(currentInput\) \? currentInput : undefined/)
 })
 
 test("lines without quote context cannot save", () => {

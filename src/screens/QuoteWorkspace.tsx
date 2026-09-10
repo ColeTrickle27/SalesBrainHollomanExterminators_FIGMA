@@ -1,3 +1,5 @@
+import { customerQuoteNumber } from "../features/sales/quoteNumber"
+import { CustomerReviewPresenter } from "../features/sales/components/CustomerReviewPresenter"
 import { signatureSendingBlocked } from "../features/sales/signatureEligibility"
 import { useEffect, useState } from "react"
 import {
@@ -53,6 +55,10 @@ export type QuoteWorkspaceSection = typeof WORKSPACE_SECTIONS[number]["id"]
 export interface QuoteWorkspaceProps
   extends QuoteBuilderPanelProps,
     QuoteInspectionProps {
+  onResumeSignature: () => Promise<{ signingUrl: string }>
+  onPersist: () => Promise<unknown>
+  onCustomerDecision: (status: "accepted" | "pending" | "declined", note: string) => Promise<void>
+  onCreateAdditionalQuote: () => Promise<void>
   onChangeCustomer: () => void
   lead: SalesLead | null
   onUpdateLead: (input: LeadInput) => Promise<SalesLead>
@@ -68,12 +74,13 @@ export interface QuoteWorkspaceProps
   ) => Promise<{ document: SalesGeneratedDocument }>
   onSendDelivery: (input: SalesDeliveryInput) => Promise<unknown>
   onRequestSignature: (input: {
+    deliveryMode?: "email" | "in_person"
     customerEmail: string
     customerName: string
     selectedOptionId: string
     message: string
     idempotencyKey: string
-  }) => Promise<unknown>
+  }) => Promise<{ signingUrl?: string }>
   onCreateProposalPdf: () => Promise<{ key: string; name: string; url: string }>
 }
 
@@ -81,6 +88,9 @@ export default function QuoteWorkspace(props: QuoteWorkspaceProps) {
   const [section, setSection] = useState<QuoteWorkspaceSection>(
     props.initialSection || "quote",
   )
+  const displayQuoteNumber = props.inspection.status === "draft" && !["signed", "completed"].includes(props.inspection.signatureStatus || "") ? customerQuoteNumber({ company: props.workflowData.customer.company, lastName: props.workflowData.customer.last, customerName: props.inspection.billTo?.billToName, serviceName: props.quoteEngineCalculation?.customerFacing.lines[0]?.serviceName, createdAt: props.inspection.createdAt }, props.inspection.estimateNumber) : props.inspection.estimateNumber
+  const [presenting, setPresenting] = useState(false)
+  const [reviewError, setReviewError] = useState("")
   const [leadEditorOpen, setLeadEditorOpen] = useState(false)
   const readiness = getQuoteWorkspaceReadiness({
     inspection: props.inspection,
@@ -99,6 +109,8 @@ export default function QuoteWorkspace(props: QuoteWorkspaceProps) {
     if (props.initialSection) setSection(props.initialSection)
   }, [props.initialSection, props.inspection.id])
 
+  if (presenting) return <CustomerReviewPresenter {...props} onClose={() => setPresenting(false)} onEditQuote={() => { setPresenting(false); setSection("quote") }} onSignature={() => { setPresenting(false); setSection("delivery") }} />
+
   return (
     <div
       className="pb-36 px-3 sm:px-4 pt-4 max-w-6xl mx-auto space-y-4 overflow-x-hidden"
@@ -116,7 +128,7 @@ export default function QuoteWorkspace(props: QuoteWorkspaceProps) {
               </span>
             </div>
             <div className="mt-2 grid gap-1 text-xs text-silver sm:grid-cols-2 sm:gap-x-8">
-              <span>Quote #{props.inspection.estimateNumber}</span>
+              <span>Quote#{displayQuoteNumber}</span>
               <span>
                 Prepared by{" "}
                 {props.currentUser?.name || props.inspection.createdBy}
@@ -151,6 +163,8 @@ export default function QuoteWorkspace(props: QuoteWorkspaceProps) {
         </div>
       </header>
 
+      <button type="button" disabled={props.isSaving || props.providerActionLoading} onClick={async () => { setReviewError(""); try { await props.onPersist(); setPresenting(true) } catch (error) { setReviewError(error instanceof Error ? error.message : "Save your inspection before reviewing.") } }} className="w-full rounded-xl bg-brand-red py-3 text-white font-bold disabled:opacity-40">Review with Customer</button>
+      {reviewError && <p role="alert" className="text-danger">{reviewError}</p>}
       <nav
         className="grid grid-cols-5 gap-1 rounded-2xl bg-white p-1.5 shadow-sm"
         aria-label="Quote Workspace sections"
@@ -214,6 +228,7 @@ export default function QuoteWorkspace(props: QuoteWorkspaceProps) {
           onLoad={props.onLoadProviderState}
           onCreateDocument={props.onCreateDocument}
           onSendDelivery={props.onSendDelivery}
+          onResumeSignature={props.onResumeSignature}
           onRequestSignature={props.onRequestSignature}
           onCreateProposalPdf={props.onCreateProposalPdf}
         />
@@ -238,10 +253,6 @@ export default function QuoteWorkspace(props: QuoteWorkspaceProps) {
             {!readiness.hasContext ? (
               <div className="mt-1.5 text-xs text-amber">
                 Select a customer or start from a SalesBrain lead before saving.
-              </div>
-            ) : !readiness.hasLines ? (
-              <div className="mt-1.5 text-xs text-amber">
-                Add a service or custom item before saving this quote.
               </div>
             ) : props.saveError ? (
               <div className="mt-1.5 text-xs text-danger">{props.saveError}</div>
@@ -284,6 +295,7 @@ function QuoteDeliveryPanel({
   onLoad,
   onCreateDocument,
   onSendDelivery,
+  onResumeSignature,
   onRequestSignature,
   onCreateProposalPdf,
 }: {
@@ -298,12 +310,15 @@ function QuoteDeliveryPanel({
   onLoad: () => void | Promise<void>
   onCreateDocument: QuoteWorkspaceProps["onCreateDocument"]
   onSendDelivery: QuoteWorkspaceProps["onSendDelivery"]
+  onResumeSignature: QuoteWorkspaceProps["onResumeSignature"]
   onRequestSignature: QuoteWorkspaceProps["onRequestSignature"]
   onCreateProposalPdf: QuoteWorkspaceProps["onCreateProposalPdf"]
 }) {
   const [documentType, setDocumentType] =
     useState<Exclude<SalesDocumentType, "agreement">>("bundle")
   const [to, setTo] = useState(workflowData.customer.email)
+  const [ccValue, setCc] = useState<string | null>(null)
+  const cc = ccValue ?? employeeProfile?.email ?? ""
   const [subject, setSubject] = useState(
     `${DOCUMENT_LABELS.bundle} — Holloman Exterminators`,
   )
@@ -311,6 +326,8 @@ function QuoteDeliveryPanel({
     "Thank you for choosing Holloman Exterminators. Please review the attached inspection and service information.",
   )
   const [notice, setNotice] = useState("")
+  const [deliveryMode, setDeliveryMode] = useState<"email" | "in_person">("email")
+  const [signingUrl, setSigningUrl] = useState("")
   const latest = documents.find((item) => item.type === documentType)
   const hasCurrentQuote = Boolean(
     inspection.quoteEngineSnapshot?.customerFacing?.quoteTotalCents,
@@ -467,6 +484,7 @@ function QuoteDeliveryPanel({
               className="mt-1 w-full rounded-xl border border-surface px-3 py-2 text-sm text-brand-dark"
             />
           </label>
+          <label className="text-xs font-semibold text-steel">CC salesperson<input type="email" value={cc} onChange={(event) => setCc(event.target.value)} className="mt-1 w-full rounded-xl border border-surface px-3 py-2 text-sm text-brand-dark" /></label>
           <label className="text-xs font-semibold text-steel">
             Subject
             <input
@@ -493,7 +511,7 @@ function QuoteDeliveryPanel({
                   documentType,
                   documentIds: [latest.id],
                   to,
-                  cc: [],
+                  cc: cc.trim() ? [cc.trim()] : [],
                   bcc: [],
                   subject,
                   message,
@@ -540,12 +558,14 @@ function QuoteDeliveryPanel({
             </p>
           </div>
         </div>
+        <label className="block mt-4 text-sm">Signature delivery<select value={deliveryMode} onChange={(event) => setDeliveryMode(event.target.value as "email" | "in_person")} className="block w-full rounded-xl border p-3 mt-1"><option value="email">Email through SignWell</option><option value="in_person">Sign in person on this device</option></select></label>
         <button
           type="button"
           onClick={() =>
             void run(async () => {
               if (signatureIsOpen) return
-              await onRequestSignature({
+              const result = await onRequestSignature({
+                deliveryMode,
                 customerEmail: to,
                 customerName,
                 selectedOptionId,
@@ -553,6 +573,7 @@ function QuoteDeliveryPanel({
                   "Please review and sign the attached Holloman Exterminators service agreement.",
                 idempotencyKey: crypto.randomUUID(),
               })
+              if (result.signingUrl) setSigningUrl(result.signingUrl)
             }, "Signature request created. SalesBrain will update status when SignWell reports it.")
           }
           disabled={
@@ -567,6 +588,8 @@ function QuoteDeliveryPanel({
           <FileSignature size={16} className="mr-2 inline" />
           Send for Signature
         </button>
+        {signatureRequest?.deliveryMode === "in_person" && !["completed", "signed", "declined", "expired", "revoked"].includes(signatureRequest.status) && <button type="button" disabled={loading} onClick={() => void run(async () => { const result = await onResumeSignature(); setSigningUrl(result.signingUrl) }, "Signing session ready.")} className="mt-3 rounded-xl border px-4 py-3 font-bold">Resume In-Person Signing</button>}
+        {signingUrl && /^https:\/\/www\.signwell\.com\//.test(signingUrl) && <a href={signingUrl} target="_blank" rel="noopener noreferrer" className="block mt-3 rounded-xl bg-brand-red px-4 py-3 text-white font-bold text-center">Open SignWell Signing Session</a>}
         {!selectedOptionId ? (
           <p className="mt-3 text-xs text-amber">
             Save a priced quote before sending it for signature.
