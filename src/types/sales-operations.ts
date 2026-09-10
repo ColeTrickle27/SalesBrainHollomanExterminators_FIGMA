@@ -1,9 +1,16 @@
 import type { SalesBrainEstimateListItem } from "../services/opsBrain/salesBrainEstimatesService"
 
 export type LeadTemperature = "hot" | "warm" | "cold"
-export type LeadStatus = "open" | "sold" | "lost"
+export type LeadStatus = "open" | "sold" | "lost" | "ex_dated"
 
 export interface SalesLead {
+  assignmentNotificationStatus?: "queued" | "sent" | "failed"
+  assignedTo?: string | null
+  assignedToName?: string
+  source?: "manual" | "quote" | "hubspot_form"
+  receivedAt?: string
+  serviceRequested?: string
+  serviceNeeded?: string
   id: string
   leadType: "New Customer" | "Existing Customer"
   customerName: string
@@ -27,6 +34,17 @@ export interface SalesLead {
   notes: string
   billToNumber?: string
   locationNumber?: string
+  customerType?: "" | "Residential" | "Commercial"
+  contactName?: string
+  contactPhone?: string
+  serviceIds?: string[]
+  nextTouchPoint?: "" | "Contact" | "Inspect" | "Send Quote" | "Follow-Up" | "X-Date"
+  statusNote?: string
+  nextTouchNote?: string
+  exDate?: string
+  exDateNote?: string
+  lastUpdateNote?: string
+  lastUpdateAt?: string
   nextFollowUpAt?: string
   createdBy: string
   createdAt: string
@@ -34,9 +52,10 @@ export interface SalesLead {
   lastInteractionAt?: string
 }
 
-export type LeadInput = Omit<SalesLead, "id" | "createdBy" | "createdAt" | "updatedAt" | "lastInteractionAt">
+export type LeadInput = Omit<SalesLead, "id" | "createdBy" | "createdAt" | "updatedAt" | "lastInteractionAt" | "lastUpdateAt" | "lastUpdateNote" | "assignedToName" | "source" | "receivedAt" | "assignmentNotificationStatus">
 
 export interface LeadActivity {
+  createdByName?: string
   id: string
   leadId: string
   type: string
@@ -107,6 +126,8 @@ export interface SalesServicePackage {
 
 export type SalesServicePackageInput = Pick<SalesServicePackage, "name" | "description" | "serviceIds">
 
+export interface LeadAssignee { username: string; displayName: string; email: string }
+
 export interface SalesEmployeeProfile {
   username: string
   displayName: string
@@ -170,13 +191,17 @@ export interface SalesDeliveryInput {
 }
 
 export interface SalesSignatureRequest {
+  deliveryMode?: "email" | "in_person"
   id: string
   quoteId: string
-  provider: "boldsign"
+  provider: "boldsign" | "signwell"
+  signatureEnvelopeId?: string
   providerDocumentId?: string
   status: "pending" | "sent" | "viewed" | "signed" | "completed" | "declined" | "expired" | "send_failed" | "revoked"
   customerEmail: string
   selectedOptionId: string
+  signedAgreementUrl?: string
+  auditTrailUrl?: string
   createdAt: string
   updatedAt: string
 }
@@ -191,6 +216,8 @@ export interface PestPacHandoff {
   agreementDate: string
   signatureDate: string
   boldSignDocumentId: string
+  signatureEnvelopeId?: string
+  signatureProvider?: "boldsign" | "signwell"
   signedAgreementR2Key: string
   auditTrailR2Key: string
   checklist: {
@@ -204,6 +231,7 @@ export interface PestPacHandoff {
 }
 
 export const LEAD_ACTIVITY_TYPES = [
+  "Comment",
   "Called",
   "Left Voicemail",
   "Texted",
@@ -217,3 +245,5 @@ export const LEAD_ACTIVITY_TYPES = [
   "Customer Requested Changes",
   "Other",
 ] as const
+
+export interface LeadIntakeIssue { messageId: string; reason: string; receivedAt: string; status: "review" | "excluded" }

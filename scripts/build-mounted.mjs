@@ -16,7 +16,7 @@ child.on("exit", async (code) => {
   try {
     const indexPath = resolve(import.meta.dirname, "../dist/index.html")
     const html = await readFile(indexPath, "utf8")
-    await writeFile(indexPath, html.replace(/[ \t]+$/gm, ""), "utf8")
+    await writeFile(indexPath, html.replace(/\r\n/g, "\n").replace(/[ \t]+$/gm, ""), "utf8")
   } catch (error) {
     console.error("Unable to finalize the mounted SalesBrain build.", error)
     process.exitCode = 1

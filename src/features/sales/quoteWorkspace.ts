@@ -22,9 +22,9 @@ const MODERN_DEPRECATED_ROUTES: QuoteWorkspaceRoute[] = [
 ]
 
 export function isQuoteEngineBackedQuote(
-  inspection: Pick<SalesInspection, "quoteEngineInput" | "quoteEngineSnapshot">,
+  inspection: Pick<SalesInspection, "quoteEngineInput" | "quoteEngineSnapshot" | "workflowData">,
 ) {
-  return Boolean(inspection.quoteEngineInput || inspection.quoteEngineSnapshot)
+  return Boolean(inspection.quoteEngineInput || inspection.quoteEngineSnapshot || inspection.workflowData?.workspaceMode === "modern")
 }
 
 export function resolveQuoteWorkspaceRoute({
@@ -217,7 +217,7 @@ export function getQuoteWorkspaceReadiness({
   return {
     hasContext,
     hasLines,
-    saveEligible: hasContext && hasLines,
+    saveEligible: hasContext,
     hasAuthoritativeCalculation,
     calculating,
     ready:

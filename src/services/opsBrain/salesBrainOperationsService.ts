@@ -16,6 +16,8 @@ import type {
 
 export interface SalesBrainOperationsService {
   loadDashboard(): Promise<SalesDashboardData>
+  listLeadIntakeIssues(): Promise<import("../../types/sales-operations").LeadIntakeIssue[]>
+  listLeadAssignees(): Promise<import("../../types/sales-operations").LeadAssignee[]>
   listLeads(): Promise<SalesLead[]>
   createLead(input: LeadInput): Promise<SalesLead>
   updateLead(id: string, input: Partial<LeadInput>): Promise<SalesLead>

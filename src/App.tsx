@@ -1,3 +1,4 @@
+import { signatureSendingBlocked } from "./features/sales/signatureEligibility"
 import { useEffect, useMemo, useState } from "react"
 
 import {
@@ -51,6 +52,7 @@ import type { CustomerIdentitySearchResult } from "./types/customer"
 import { normalizeSalesBrainWorkflowData } from "./types/figma-workflow"
 
 import type { SalesLead } from "./types/sales-operations"
+import { graphReportContext } from "./features/sales/graphReportIntake"
 
 type Screen = "dashboard" | "customer-search" | "quote-workspace" | "wizard" | "job-costing" | "presentation" | "proposal" | "quote-history" | "admin-detail"
 
@@ -92,6 +94,31 @@ function screenFromLocation(): Screen {
 
 export default function App() {
   const workflow = useSalesWorkflow()
+  const [incomingGraph, setIncomingGraph] = useState(() => graphReportContext(window.location.search))
+  const [replaceDraftConfirmed, setReplaceDraftConfirmed] = useState(false)
+  const [graphIntakeBusy, setGraphIntakeBusy] = useState(false)
+  const [graphIntakeError, setGraphIntakeError] = useState("")
+
+  const clearGraphIntake = () => {
+    const url = new URL(window.location.href)
+    for (const key of ["billTo", "location", "graphKey"]) url.searchParams.delete(key)
+    window.history.replaceState(null, "", url)
+    setIncomingGraph(null)
+  }
+
+  const startGraphReport = async () => {
+    if (!incomingGraph || !replaceDraftConfirmed || graphIntakeBusy) return
+    setGraphIntakeBusy(true)
+    setGraphIntakeError("")
+    try {
+      await workflow.startQuoteFromGraphReport(incomingGraph)
+      clearGraphIntake()
+      setQuoteWorkspaceSection("inspection")
+      go("quote-workspace")
+    } catch (error) {
+      setGraphIntakeError(error instanceof Error ? error.message : "Unable to open this graph's quote.")
+    } finally { setGraphIntakeBusy(false) }
+  }
 
   const [screen, setScreen] = useState<Screen>(() => screenFromLocation())
 
@@ -122,6 +149,7 @@ export default function App() {
       screen === "job-costing"
     )
       void workflow.loadEstimates()
+    if (screen === "dashboard") void workflow.refreshOperations()
   }, [screen])
 
   const go = (next: Screen) => {
@@ -170,6 +198,7 @@ export default function App() {
     const opened = await workflow.openEstimate(id)
 
     if (!opened) return
+    if (action === "signature" && signatureSendingBlocked(opened)) return
 
     if (isQuoteEngineBackedQuote(opened)) {
       setQuoteWorkspaceSection("delivery")
@@ -307,6 +336,13 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-surface flex flex-col">
+      {incomingGraph ? <div className="bg-white border-b border-surface p-4 space-y-3">
+        <strong>Start a new quote from your saved graph</strong>
+        <p className="text-sm">Bill-To {incomingGraph.billToNumber} · Location {incomingGraph.locationNumber}. Your current quote has not changed. Save any current work using Save Draft before continuing; saved quotes remain available in Quotes.</p>
+        <label className="flex gap-2 text-sm"><input type="checkbox" checked={replaceDraftConfirmed} onChange={event => setReplaceDraftConfirmed(event.target.checked)} disabled={graphIntakeBusy} />I have saved my current work, or I choose to discard its unsaved changes and start a new quote.</label>
+        <div className="flex gap-3"><button className="rounded-xl bg-brand-red px-4 py-2 text-white disabled:opacity-50" disabled={!replaceDraftConfirmed || graphIntakeBusy || workflow.restoringEstimate || workflow.currentUserLoading || workflow.isSaving} onClick={() => void startGraphReport()}>{graphIntakeBusy ? "Checking graph…" : "Start New Quote from Graph"}</button><button disabled={graphIntakeBusy} onClick={clearGraphIntake}>Keep Current Quote</button></div>
+        {graphIntakeError ? <p role="alert" className="text-danger text-sm">{graphIntakeError}</p> : null}
+      </div> : null}
       {isOffline ? (
         <div className="bg-amber flex items-center gap-2 px-4 py-2 z-40">
           <WifiOff size={15} className="text-white" />
@@ -399,7 +435,9 @@ export default function App() {
             data={workflow.dashboardData}
             loading={workflow.estimatesLoading || workflow.operationsLoading}
             error={workflow.estimatesError || workflow.operationsError}
+            onLoadAssignees={workflow.loadLeadAssignees}
             leadActivities={workflow.leadActivities}
+            services={workflow.pricebookServices}
             onStartInspection={beginCustomerSearch}
             onOpenEstimate={(id) => void openEstimate(id)}
             onDeleteEstimate={workflow.deleteEstimate}
@@ -508,6 +546,10 @@ export default function App() {
             onQuoteNotesChange={workflow.updateQuoteNotes}
             onQuoteEngineInputChange={workflow.updateQuoteEngineInput}
             onSave={() => void workflow.saveEstimate()}
+            onResumeSignature={workflow.resumeCustomerSignature}
+            onPersist={() => workflow.saveEstimate({ required: true })}
+            onCustomerDecision={workflow.saveCustomerDecision}
+            onCreateAdditionalQuote={workflow.createAdditionalQuote}
             onChangeCustomer={changeCustomer}
             lead={activeQuoteLead}
             onUpdateLead={workflow.updateActiveQuoteLead}
@@ -572,6 +614,7 @@ export default function App() {
         ) : null}
         {screen === "admin-detail" ? (
           <AdminDetail
+            onLoadLeadIntakeIssues={workflow.loadLeadIntakeIssues}
             services={workflow.pricebookServices}
             loading={workflow.pricebookLoading}
             error={workflow.pricebookError}

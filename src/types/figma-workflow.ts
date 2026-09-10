@@ -142,6 +142,10 @@ export interface SalesBrainAcceptanceDetails {
  * solely so saved version-1 records can be normalized without data loss.
  */
 export interface SalesBrainWorkflowData {
+  workspaceMode?: "modern"
+  reportPhotoImages?: Array<{ photoId: string; sourceStorageKey: string; storageKey: string }>
+  customerGraphImage?: { storageKey: string; sourceGraphKey: string }
+  customerDecision?: { status: "accepted" | "pending" | "declined"; note?: string; decidedAt: string }
   version: 1 | 2 | 3 | 4
   currentStep: number
   completedSteps: number[]

@@ -101,16 +101,19 @@ export interface SalesBrainEstimatesService {
 
   listDeliveries(id: string): Promise<SalesDeliveryEvent[]>
 
+  getSignatureSigningUrl(id: string): Promise<{ signingUrl: string }>
+
   createSignatureRequest(
     id: string,
     input: {
+      deliveryMode?: "email" | "in_person"
       customerEmail: string
       customerName: string
       selectedOptionId: string
       message: string
       idempotencyKey: string
     },
-  ): Promise<{ signatureRequest: SalesSignatureRequest; duplicate: boolean }>
+  ): Promise<{ signatureRequest: SalesSignatureRequest; duplicate: boolean; signingUrl?: string }>
 
   getSignatureRequest(id: string): Promise<SalesSignatureRequest | null>
 
@@ -120,6 +123,10 @@ export interface SalesBrainEstimatesService {
     id: string,
     input: PestPacHandoff & { complete?: boolean },
   ): Promise<PestPacHandoff>
+
+  getPhotoBlob(photo: PhotoReference): Promise<Blob>
+
+  copyPhotoToEstimate(photo: PhotoReference, estimateId: string): Promise<PhotoReference>
 
   uploadPhoto(estimateId: string, file: File): Promise<PhotoReference>
 

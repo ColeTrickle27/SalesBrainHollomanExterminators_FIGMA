@@ -1,3 +1,4 @@
+import { LeadIntakeReview } from "./LeadIntakeReview"
 import { useEffect, useState, type ReactNode } from "react"
 import { AlertTriangle, BriefcaseBusiness, Calculator, DatabaseBackup, Edit3, Mail, Package, Plus, RefreshCw, Settings, Trash2, Users, X } from "lucide-react"
 
@@ -18,6 +19,7 @@ import type {
 import type { OpsBrainUser } from "../types/user"
 
 interface Props {
+  onLoadLeadIntakeIssues: () => Promise<import("../types/sales-operations").LeadIntakeIssue[]>
   services: PricebookService[]
   products: SalesProduct[]
   laborRoles: SalesLaborRole[]
@@ -133,6 +135,7 @@ export default function AdminDetail(props: Props) {
     <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">{tabs.map(([id, label, Icon]) => <button key={id} onClick={() => setTab(id)} className={`bg-white rounded-2xl p-4 shadow-sm text-left border-2 ${tab === id ? "border-brand-red" : "border-transparent"}`}><Icon size={20} className={tab === id ? "text-brand-red" : "text-steel"} /><div className="font-display text-sm font-bold text-brand-dark uppercase mt-2">{label}</div><div className="text-xs text-success mt-1">Live D1 configuration</div></button>)}</div>
     {props.error || formError ? <div className="bg-danger-light border border-danger/25 rounded-xl p-3 text-sm text-danger flex items-center gap-2"><AlertTriangle size={16} />{formError || props.error}</div> : null}
     {props.loading ? <div className="bg-white rounded-2xl p-6 text-center text-sm text-steel">Loading Admin data…</div> : null}
+    {isAdmin && <LeadIntakeReview onLoad={props.onLoadLeadIntakeIssues} />}
     {isAdmin ? <section className="bg-white rounded-2xl p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4"><div><div className="flex items-center gap-2"><DatabaseBackup size={19} className="text-brand-red" /><h2 className="font-display text-lg font-bold text-brand-dark uppercase">Legacy R2 Import</h2></div><p className="text-sm text-steel mt-1">Idempotently copies legacy estimates and pricebook services into D1. Source R2 files are never deleted.</p>{migrationResult ? <p className="text-xs text-success mt-2">Estimates: {migrationResult.estimates.imported} imported, {migrationResult.estimates.skipped} skipped, {migrationResult.estimates.d1Count} in D1 · Services: {migrationResult.pricebookServices.imported} imported, {migrationResult.pricebookServices.skipped} skipped, {migrationResult.pricebookServices.d1Count} in D1 · Deleted: {migrationResult.sourceObjectsDeleted}</p> : null}</div><button disabled={migrationRunning} onClick={() => void runLegacyImport()} className="bg-brand-dark text-white rounded-xl px-4 py-2.5 text-sm font-bold disabled:opacity-50">{migrationRunning ? "Importing…" : "Run Legacy Import"}</button></section> : null}
 
     {tab === "services" ? <AdminSection title="Pricebook Services" action="Add Service" onAction={() => setServiceForm({ name: "", category: "", description: "", price: "", priceBy: "variable", productIds: [] })}>{props.services.map((item) => <Card key={item.id} title={item.name} meta={`${item.category} · ${priceByLabel(item.priceBy)} · ${item.active ? "Active" : "Inactive"}`} value={`$${(item.price / 100).toLocaleString()}`} inactive={!item.active} onEdit={() => setServiceForm({ id: item.id, name: item.name, category: item.category, description: item.description, price: (item.price / 100).toFixed(2), priceBy: item.priceBy, productIds: item.productIds })} onDeactivate={item.active ? () => void props.onDeactivate(item.id) : undefined}><p className="text-sm text-steel mt-2">{item.description || "No description"}</p><p className="text-xs text-steel mt-2">{item.productIds.length} linked product{item.productIds.length === 1 ? "" : "s"}</p></Card>)}</AdminSection> : null}

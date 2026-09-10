@@ -110,13 +110,18 @@ export class MockSalesBrainEstimatesService
   }
   async listDeliveries(id: string) { return clone(this.deliveries.get(id) || []) }
   async createSignatureRequest(id: string, input: { customerEmail: string; customerName: string; selectedOptionId: string; message: string; idempotencyKey: string }) {
-    const request: SalesSignatureRequest = { id: crypto.randomUUID(), quoteId: id, provider: "boldsign", status: "pending", customerEmail: input.customerEmail, selectedOptionId: input.selectedOptionId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+    const request: SalesSignatureRequest = { id: crypto.randomUUID(), quoteId: id, provider: "signwell", signatureEnvelopeId: `sig-${crypto.randomUUID()}`, status: "pending", customerEmail: input.customerEmail, selectedOptionId: input.selectedOptionId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
     this.signatures.set(id, request)
     return { signatureRequest: request, duplicate: false }
   }
+  async getSignatureSigningUrl(_id: string): Promise<{ signingUrl: string }> { throw new Error("In-person signing requires the connected SignWell service.") }
   async getSignatureRequest(id: string) { return clone(this.signatures.get(id) || null) }
   async getPestPacHandoff(id: string) { return clone(this.handoffs.get(id) || null) }
   async savePestPacHandoff(id: string, input: PestPacHandoff & { complete?: boolean }) { const handoff = { ...input, quoteId: id, status: input.complete ? "completed" as const : "pending" as const }; this.handoffs.set(id, handoff); return clone(handoff) }
+
+  async getPhotoBlob(_photo: PhotoReference): Promise<Blob> { throw new Error("Report photo preparation requires connected OpsBrain storage.") }
+
+  async copyPhotoToEstimate(photo: PhotoReference, estimateId: string) { return { ...clone(photo), storageKey: photo.source === "sales-brain" ? `sales-brain/photos/${estimateId}/${photo.id}` : photo.storageKey } }
 
   async uploadPhoto(estimateId: string, file: File): Promise<PhotoReference> {
     return {

@@ -260,6 +260,19 @@ test("restored and explicitly reopened quotes use the persisted save time", () =
   assert.match(workspaceSource, /Not saved yet/)
 })
 
+test("Delivery keeps Send for Signature clear of the fixed draft footer", () => {
+  assert.match(workspaceSource, /section !== "delivery" \? \(/)
+  assert.match(workspaceSource, /Send for Signature/)
+})
+
+test("Delivery refreshes pending signatures and exposes completed agreement files", () => {
+  assert.match(workspaceSource, /30_000/)
+  assert.match(workspaceSource, /Check signature status/)
+  assert.match(workspaceSource, /Download Signed Agreement/)
+  assert.match(workspaceSource, /View Audit Trail/)
+  assert.match(workspaceSource, /saved in this customer's files/)
+})
+
 test("customer summary uses employee-facing context actions and warning", () => {
   assert.match(customerSummarySource, /"Edit Lead"/)
   assert.match(customerSummarySource, /"Change Customer"/)
@@ -365,24 +378,13 @@ test("Bill-To plus Location quote context is valid", () => {
   assert.equal(readiness.ready, true)
 })
 
-test("context with zero lines cannot save", () => {
-  const readiness = getQuoteWorkspaceReadiness({
-    inspection: { leadId: "lead-1", quoteEngineInput: emptyInput },
-    calculation: null,
-    calculating: false,
-  })
+test("inspection context with zero quote lines can save without being quote-ready", () => {
+  const readiness = getQuoteWorkspaceReadiness({ inspection: { leadId: "lead-1", quoteEngineInput: emptyInput }, calculation: null, calculating: false })
   assert.equal(readiness.hasContext, true)
   assert.equal(readiness.hasLines, false)
-  assert.equal(readiness.saveEligible, false)
-  assert.match(workspaceSource, /!readiness\.saveEligible/)
-  assert.match(
-    workspaceSource,
-    /Add a service or custom item before saving this quote\./,
-  )
-  assert.match(
-    workflowSource,
-    /!quoteEngineInputHasLines\(inspection\.quoteEngineInput\)/,
-  )
+  assert.equal(readiness.saveEligible, true)
+  assert.equal(readiness.ready, false)
+  assert.match(workflowSource, /currentInput && quoteEngineInputHasLines\(currentInput\) \? currentInput : undefined/)
 })
 
 test("lines without quote context cannot save", () => {

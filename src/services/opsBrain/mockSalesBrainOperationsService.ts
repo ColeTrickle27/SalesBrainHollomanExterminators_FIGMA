@@ -23,6 +23,8 @@ export class MockSalesBrainOperationsService implements SalesBrainOperationsServ
   private packages: SalesServicePackage[] = []
   private employees: SalesEmployeeProfile[] = [{ username: "preview", displayName: "Preview User", email: "preview@holloman-ext.com", active: true, gmailEnabled: false }]
   async loadDashboard() { return { leads: structuredClone(this.leads), drafts: [], pending: [], metrics: { acceptedCount: 0, acceptedRevenueCents: 0, closeRatePercent: null, averageMarginPercent: null } } }
+  async listLeadIntakeIssues(): Promise<import("../../types/sales-operations").LeadIntakeIssue[]> { return [] }
+  async listLeadAssignees() { return structuredClone(this.employees.filter((employee) => employee.active).map(({ username, displayName, email }) => ({ username, displayName, email }))) }
   async listLeads() { return structuredClone(this.leads) }
   async createLead(input: LeadInput) { const now = new Date().toISOString(); const lead: SalesLead = { ...input, id: crypto.randomUUID(), createdBy: "preview", createdAt: now, updatedAt: now, lastInteractionAt: now }; this.leads.unshift(lead); return structuredClone(lead) }
   async updateLead(id: string, input: Partial<LeadInput>) { const index = this.leads.findIndex((item) => item.id === id); if (index < 0) throw new Error("Lead not found."); this.leads[index] = { ...this.leads[index], ...input, updatedAt: new Date().toISOString() }; return structuredClone(this.leads[index]) }

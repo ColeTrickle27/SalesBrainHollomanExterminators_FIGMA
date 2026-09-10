@@ -1,3 +1,9 @@
+import { reportImageJpeg } from "./reportGraphImage"
+import { prepareReportPhotoImages } from "./reportPhotoImages"
+import { exportCustomerGraph } from "./exportCustomerGraph"
+import { additionalQuoteInspection, customerDecisionInspection, customerSaveIssue } from "./customerReview"
+import { customerQuoteNumber } from "./quoteNumber"
+import { signatureSendingBlocked } from "./signatureEligibility"
 /**
  * Centralized workflow state for the Sales Brain UI shell.
  *
@@ -27,6 +33,8 @@ import type { InspectionFinding } from "../../types/findings"
 import type { PropertyInspection } from "../../types/property"
 
 import type { SalesInspection } from "../../types/sales-inspection"
+import { createCustomerIdentityService } from "../../services/opsBrain"
+import { exactGraphReportIdentity, verifyGraphReportOwnership, type GraphReportContext } from "./graphReportIntake"
 import {
   createEmptyQuoteEngineInput,
   customerPricingSnapshotFromQuoteEngine,
@@ -359,6 +367,8 @@ export function useSalesWorkflow() {
   )
 
   const estimatesServiceRef = useRef<SalesBrainEstimatesService | null>(null)
+  const graphIntakeInspectionRef = useRef(inspection)
+  graphIntakeInspectionRef.current = inspection
 
   const pricebookServiceRef = useRef<SalesBrainPricebookService | null>(null)
   const quoteEngineServiceRef = useRef<QuoteEngineService | null>(null)
@@ -558,6 +568,11 @@ export function useSalesWorkflow() {
 
     setOperationsError(null)
 
+    // Sender availability must not depend on unrelated catalog or dashboard requests.
+    const employeeRefresh = operationsServiceRef.current!.getMyEmployeeProfile()
+      .then((employee) => setEmployeeProfile(employee))
+      .catch(() => setOperationsError((current) => current || "Your Gmail sender profile could not be refreshed. Please try again."))
+
     try {
       const [
         dashboard,
@@ -566,7 +581,6 @@ export function useSalesWorkflow() {
         laborRows,
         settings,
         packageRows,
-        employee,
       ] = await Promise.all([
         operationsServiceRef.current!.loadDashboard(),
 
@@ -579,8 +593,6 @@ export function useSalesWorkflow() {
         operationsServiceRef.current!.getCostingSettings(),
 
         operationsServiceRef.current!.listServicePackages(),
-
-        operationsServiceRef.current!.getMyEmployeeProfile(),
       ])
 
       setDashboardData({ ...dashboard, leads: allLeads })
@@ -592,8 +604,6 @@ export function useSalesWorkflow() {
       setCostingSettings(settings)
 
       setServicePackages(packageRows)
-
-      setEmployeeProfile(employee)
     } catch (error) {
       setOperationsError(
         error instanceof Error
@@ -601,6 +611,7 @@ export function useSalesWorkflow() {
           : "Could not load Sales Brain operating data.",
       )
     } finally {
+      await employeeRefresh
       setOperationsLoading(false)
     }
   }, [])
@@ -841,21 +852,19 @@ export function useSalesWorkflow() {
     total,
   ])
 
-  const saveEstimate = async () => {
-    if (saveInFlightRef.current) return
-
-    if (!hasQuoteEngineQuoteContext(quoteEngineContextFor(inspection, currentUser))) {
-      setSaveError(
-        "Select an existing customer or start a SalesBrain lead quote before saving.",
-      )
+  const saveEstimate = async (options: { required?: boolean; inspection?: SalesInspection } = {}) => {
+    const activeInspection = graphIntakeInspectionRef.current
+    const sourceInspection = options.inspection || activeInspection
+    if (saveInFlightRef.current) {
+      if (options.required) throw new Error("A save is already in progress. Please wait and try again.")
       return
     }
 
-    if (
-      inspection.quoteEngineInput &&
-      !quoteEngineInputHasLines(inspection.quoteEngineInput)
-    ) {
-      setSaveError("Add a service or custom item before saving this quote.")
+    if (!hasQuoteEngineQuoteContext(quoteEngineContextFor(sourceInspection, currentUser))) {
+      setSaveError(
+        "Select an existing customer or start a SalesBrain lead quote before saving.",
+      )
+      if (options.required) throw new Error("Select a customer or lead before continuing.")
       return
     }
 
@@ -864,16 +873,20 @@ export function useSalesWorkflow() {
     setIsSaving(true)
     setSaveError(null)
     try {
-      const currentInput = inspection.quoteEngineInput
+      const currentInput = sourceInspection.quoteEngineInput
+      const issue = customerSaveIssue(sourceInspection)
+      if (issue) throw new Error(issue)
       const quoteInputForSave = quoteEngineInputForSave(
         {
-          input: currentInput,
+          input: currentInput && quoteEngineInputHasLines(currentInput) ? currentInput : undefined,
           dirty: quoteEngineInputDirty,
         },
         { snapshotBacked: Boolean(inspection.quoteEngineSnapshot) },
       )
       const estimateForSave = normalizeInspection({
-        ...inspection,
+        ...sourceInspection,
+        estimateNumber: sourceInspection.status === "draft" && !["signed", "completed"].includes(sourceInspection.signatureStatus || "") ? customerQuoteNumber({ company: sourceInspection.workflowData?.customer.company, lastName: sourceInspection.workflowData?.customer.last, customerName: sourceInspection.billTo?.billToName, serviceName: quoteEngineCalculation?.customerFacing.lines[0]?.serviceName, createdAt: sourceInspection.createdAt }, sourceInspection.estimateNumber) : sourceInspection.estimateNumber,
+        workflowData: { ...normalizeSalesBrainWorkflowData(sourceInspection.workflowData), ...(currentInput || sourceInspection.quoteEngineSnapshot ? { workspaceMode: "modern" as const } : {}) },
         quoteEngineInput: quoteInputForSave
           ? quoteEngineInputWithCurrentContext(
               quoteInputForSave,
@@ -884,27 +897,29 @@ export function useSalesWorkflow() {
       })
       const savedInspection =
         await estimatesServiceRef.current!.saveEstimate(estimateForSave)
+      if (graphIntakeInspectionRef.current !== activeInspection) {
+        throw new Error("Your work changed while saving. Your latest edits are preserved; please try again.")
+      }
       const savedEditableState = quoteEngineEditableStateFromSavedSnapshot(
         savedInspection.quoteEngineSnapshot,
         savedInspection.quoteEngineInput ?? currentInput,
       )
-      setInspection(
-        normalizeInspection({
-          ...savedInspection,
-          quoteEngineInput: savedEditableState.input,
-        }),
-      )
+      const normalizedSaved = normalizeInspection({ ...savedInspection, quoteEngineInput: savedEditableState.input })
+      graphIntakeInspectionRef.current = normalizedSaved
+      setInspection(normalizedSaved)
       setQuoteEngineCalculation(savedInspection.quoteEngineSnapshot ?? null)
       setQuoteEngineInputDirty(savedEditableState.dirty)
       writeLastOpenEstimateId(savedInspection.id)
 
       setSavedAt(savedInspection.updatedAt)
+      return savedInspection
     } catch (error) {
       setSaveError(
         error instanceof Error
           ? error.message
           : "Could not save this estimate. Your work is still here; try again.",
       )
+      if (options.required) throw error
     } finally {
       saveInFlightRef.current = false
 
@@ -1354,9 +1369,9 @@ export function useSalesWorkflow() {
    * dismissed graph photos. A graph refresh is optional and never clears a
    * manually entered note/photo when it fails. */
 
-  const importGraphData = async (graphKey: string) => {
+  const importGraphData = async (graphKey: string, loaded?: [Awaited<ReturnType<BugManGraphsService["getMarkers"]>>, Awaited<ReturnType<BugManGraphsService["getPhotos"]>>]) => {
     try {
-      const [markers, graphPhotos] = await Promise.all([
+      const [markers, graphPhotos] = loaded ?? await Promise.all([
         graphServiceRef.current!.getMarkers(graphKey),
 
         graphServiceRef.current!.getPhotos(graphKey),
@@ -1869,6 +1884,10 @@ export function useSalesWorkflow() {
     )
   }
 
+  const loadLeadIntakeIssues = useCallback(() => operationsServiceRef.current!.listLeadIntakeIssues(), [])
+
+  const loadLeadAssignees = useCallback(() => operationsServiceRef.current!.listLeadAssignees(), [])
+
   const loadEmployeeProfiles = useCallback(async () => {
     const rows = await operationsServiceRef.current!.listEmployeeProfiles()
 
@@ -1951,11 +1970,38 @@ export function useSalesWorkflow() {
     [inspection.id],
   )
 
+  const prepareCustomerDocument = async (type: SalesDocumentType) => {
+    const saved = await saveEstimate({ required: true })
+    if (!saved) throw new Error("Save the inspection before creating its document.")
+    if (type !== "inspection-report" && type !== "bundle") return
+    const sourceAfterSave = graphIntakeInspectionRef.current
+    const assertCurrent = () => { if (graphIntakeInspectionRef.current !== sourceAfterSave) throw new Error("Your inspection changed while preparing report images. Please try again. Your latest work is still here.") }
+    const image = await exportCustomerGraph(saved)
+    assertCurrent()
+    let customerGraphImage = undefined
+    if (image && saved.property?.graphKey) {
+      const uploaded = await estimatesServiceRef.current!.uploadPhoto(saved.id, new File([image], "Structure graph.jpg", { type: "image/jpeg" }))
+      assertCurrent()
+      if (!uploaded.storageKey) throw new Error("The graph image could not be saved. Please try again.")
+      customerGraphImage = { storageKey: uploaded.storageKey, sourceGraphKey: saved.property.graphKey }
+    }
+    const reportPhotoImages = await prepareReportPhotoImages(sourceAfterSave, {
+      load: (photo) => estimatesServiceRef.current!.getPhotoBlob(photo),
+      convert: reportImageJpeg,
+      upload: (file) => estimatesServiceRef.current!.uploadPhoto(saved.id, file),
+      assertCurrent,
+    })
+    assertCurrent()
+    if (image || sourceAfterSave.workflowData?.customerGraphImage || JSON.stringify(reportPhotoImages) !== JSON.stringify(sourceAfterSave.workflowData?.reportPhotoImages || [])) {
+      await saveEstimate({ required: true, inspection: { ...sourceAfterSave, workflowData: { ...normalizeSalesBrainWorkflowData(sourceAfterSave.workflowData), customerGraphImage, reportPhotoImages } } })
+    }
+  }
+
   const createCustomerDocument = async (type: SalesDocumentType) => {
     setProviderActionLoading(true)
 
     try {
-      await saveEstimate()
+      await prepareCustomerDocument(type)
 
       const result = await estimatesServiceRef.current!.createDocument(
         inspection.id,
@@ -1974,9 +2020,13 @@ export function useSalesWorkflow() {
     setProviderActionLoading(true)
 
     try {
+      await prepareCustomerDocument(input.documentType)
+      const currentDocument = await estimatesServiceRef.current!.createDocument(inspection.id, input.documentType)
+      setGeneratedDocuments((current) => [currentDocument.document, ...current])
+
       const result = await estimatesServiceRef.current!.sendDelivery(
         inspection.id,
-        input,
+        { ...input, documentIds: [currentDocument.document.id] },
       )
 
       setDeliveries((current) => [
@@ -1988,7 +2038,7 @@ export function useSalesWorkflow() {
         inspection.id,
       )
 
-      if (refreshed) {
+      if (refreshed && graphIntakeInspectionRef.current === inspection) {
         const savedEditableState = quoteEngineEditableStateFromSavedSnapshot(
           refreshed.quoteEngineSnapshot,
           refreshed.quoteEngineInput,
@@ -2012,16 +2062,21 @@ export function useSalesWorkflow() {
   }
 
   const requestCustomerSignature = async (input: {
+    deliveryMode?: "email" | "in_person"
     customerEmail: string
     customerName: string
     selectedOptionId: string
     message: string
     idempotencyKey: string
   }) => {
+    if (signatureSendingBlocked(inspection, signatureRequest)) {
+      throw new Error("This quote is already accepted or has a signature request in progress.")
+    }
+
     setProviderActionLoading(true)
 
     try {
-      await saveEstimate()
+      await saveEstimate({ required: true })
 
       const result = await estimatesServiceRef.current!.createSignatureRequest(
         inspection.id,
@@ -2058,7 +2113,7 @@ export function useSalesWorkflow() {
   }
 
   const createProposalPdf = async () => {
-    await saveEstimate()
+    await prepareCustomerDocument("bundle")
 
     const result = await estimatesServiceRef.current!.createProposalPdf(
       inspection.id,
@@ -2700,7 +2755,51 @@ export function useSalesWorkflow() {
     }
   }
 
+  const startQuoteFromGraphReport = async (context: GraphReportContext) => {
+    // Validate and load everything before replacing the active in-memory draft.
+    const identity = exactGraphReportIdentity(await createCustomerIdentityService().searchCustomerIdentities(context.billToNumber), context)
+    verifyGraphReportOwnership(await graphServiceRef.current!.listGraphsForProperty(context), context)
+    const loaded = await Promise.all([graphServiceRef.current!.getMarkers(context.graphKey), graphServiceRef.current!.getPhotos(context.graphKey)])
+    if (graphIntakeInspectionRef.current !== inspection) throw new Error("Your current quote changed while the graph was loading. Review your work, then try again.")
+    const fresh = createEmptySalesInspection(currentUser?.username ?? "unassigned")
+    const contextual = { ...fresh, ...canonicalCustomerContext(identity), workflowData: normalizeSalesBrainWorkflowData({ ...fresh.workflowData, customer: canonicalCustomerWorkflowDetails(identity, normalizeSalesBrainWorkflowData(fresh.workflowData).customer) }) }
+    startNewEstimate()
+    setInspection({ ...contextual, quoteEngineInput: createEmptyQuoteEngineInput(quoteEngineContextFor(contextual, currentUser)) })
+    writeLastOpenEstimateId(contextual.id)
+    setWorkspaceGraphKey(context.graphKey)
+    await importGraphData(context.graphKey, loaded)
+  }
+
+  const saveCustomerDecision = async (status: "accepted" | "pending" | "declined", note: string) => {
+    const source = customerDecisionInspection(inspection, status, note, new Date().toISOString())
+    await saveEstimate({ required: true, inspection: source })
+  }
+
+  const createAdditionalQuote = async () => {
+    const saved = await saveEstimate({ required: true })
+    if (!saved) throw new Error("Save the current inspection before creating another quote.")
+    const fresh = createEmptySalesInspection(currentUser?.username ?? "unassigned")
+    const sourceAfterSave = graphIntakeInspectionRef.current
+    const copiedPhotos = await Promise.all(saved.photos.map((photo) => estimatesServiceRef.current!.copyPhotoToEstimate(photo, fresh.id)))
+    if (graphIntakeInspectionRef.current !== sourceAfterSave) throw new Error("Your inspection changed while copying photos. Please try again; the original remains saved.")
+    const cloned = additionalQuoteInspection({ ...saved, photos: copiedPhotos }, fresh)
+    const next = normalizeInspection({ ...cloned, quoteEngineInput: createEmptyQuoteEngineInput(quoteEngineContextFor(cloned, currentUser)) })
+    setInspection(next)
+    setQuoteEngineCalculation(null)
+    setQuoteEngineInputDirty(false)
+    setSignatureRequest(null)
+    setGeneratedDocuments([])
+    setDeliveries([])
+    setSavedAt(null)
+    setSaveError(null)
+    writeLastOpenEstimateId(next.id)
+  }
+
   return {
+    startQuoteFromGraphReport,
+    saveCustomerDecision,
+    resumeCustomerSignature: async () => { await saveEstimate({ required: true }); return estimatesServiceRef.current!.getSignatureSigningUrl(inspection.id) },
+    createAdditionalQuote,
     activeNavItem,
 
     setActiveNavItem,
@@ -2952,6 +3051,8 @@ export function useSalesWorkflow() {
     deactivateServicePackage,
 
     loadEmployeeProfiles,
+    loadLeadAssignees,
+    loadLeadIntakeIssues,
 
     updateEmployeeProfile,
 
