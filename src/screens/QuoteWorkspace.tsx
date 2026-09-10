@@ -1,3 +1,4 @@
+import { signatureSendingBlocked } from "../features/sales/signatureEligibility"
 import { useEffect, useState } from "react"
 import {
   Calculator,
@@ -317,12 +318,7 @@ function QuoteDeliveryPanel({
   const selectedOptionId =
     workflowData.selectedQuoteOptionId ||
     (hasCurrentQuote ? "quote-engine" : "")
-  const signatureIsOpen = Boolean(
-    signatureRequest &&
-      !["declined", "expired", "send_failed", "revoked"].includes(
-        signatureRequest.status,
-      ),
-  )
+  const signatureIsOpen = signatureSendingBlocked(inspection, signatureRequest)
 
   useEffect(() => {
     setTo(workflowData.customer.email)
@@ -548,6 +544,7 @@ function QuoteDeliveryPanel({
           type="button"
           onClick={() =>
             void run(async () => {
+              if (signatureIsOpen) return
               await onRequestSignature({
                 customerEmail: to,
                 customerName,

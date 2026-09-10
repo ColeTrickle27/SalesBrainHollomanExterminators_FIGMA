@@ -1,3 +1,4 @@
+import { signatureSendingBlocked } from "./features/sales/signatureEligibility"
 import { useEffect, useMemo, useState } from "react"
 
 import {
@@ -196,6 +197,7 @@ export default function App() {
     const opened = await workflow.openEstimate(id)
 
     if (!opened) return
+    if (action === "signature" && signatureSendingBlocked(opened)) return
 
     if (isQuoteEngineBackedQuote(opened)) {
       setQuoteWorkspaceSection("delivery")

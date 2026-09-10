@@ -1,3 +1,4 @@
+import { signatureSendingBlocked } from "../features/sales/signatureEligibility"
 import { useMemo, useState } from "react"
 
 import {
@@ -272,8 +273,9 @@ export default function QuoteHistory({
                 Send Email
               </button>
               <button
-                onClick={() => onAction(estimate.id, "signature")}
-                className="rounded-lg border border-brand-red bg-brand-red px-2 py-2 text-xs font-bold text-white hover:bg-brand-red/90"
+                onClick={() => { if (!signatureSendingBlocked(estimate)) onAction(estimate.id, "signature") }}
+                disabled={signatureSendingBlocked(estimate)}
+                className="rounded-lg border border-brand-red bg-brand-red px-2 py-2 text-xs font-bold text-white hover:bg-brand-red/90 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Send for Signature
               </button>

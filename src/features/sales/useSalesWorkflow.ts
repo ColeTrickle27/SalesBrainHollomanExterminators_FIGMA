@@ -1,3 +1,4 @@
+import { signatureSendingBlocked } from "./signatureEligibility"
 /**
  * Centralized workflow state for the Sales Brain UI shell.
  *
@@ -2022,6 +2023,10 @@ export function useSalesWorkflow() {
     message: string
     idempotencyKey: string
   }) => {
+    if (signatureSendingBlocked(inspection, signatureRequest)) {
+      throw new Error("This quote is already accepted or has a signature request in progress.")
+    }
+
     setProviderActionLoading(true)
 
     try {
