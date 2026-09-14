@@ -36,6 +36,14 @@ Do not combine unrelated features, fixes, cleanup, refactors, or experiments.
 
 If another issue is discovered, fix it only if it blocks or safely completes the current task. Otherwise report it separately.
 
+## Delivery ownership
+
+Treat a request to build, fix, connect, automate, or improve a sales workflow as authorization to carry it through its normal delivery path: inspect the responsible code, make the smallest sound change, verify the affected employee workflow, inspect the final diff, commit the intended files, push the dedicated branch, and create or update the pull request when the repository uses pull requests.
+
+Do not stop at a plan, local edits, an unpushed branch, or an uncreated pull request unless the request is review-only or a real blocker remains. State a blocker plainly and exhaust safe alternatives before asking for help.
+
+Production deployment, production-data writes, sending messages, merging a pull request, deleting data, and other irreversible external actions require separate explicit authorization.
+
 ---
 
 # Technology Standard
@@ -474,39 +482,43 @@ Do not begin by redesigning the application.
 
 # Required Validation
 
-For normal SalesBrain changes, run as applicable:
+Match validation to the changed behavior. Do not run broad checks merely by habit.
 
-```bash
-pnpm test
-pnpm run build
-```
+- Documentation, agent rules, and configuration comments: inspect the diff and validate structured configuration when changed. Do not run an application build or tests unless runtime behavior is affected.
+- Small visual or wording changes: inspect the diff, run the relevant type or syntax check, and visually verify the affected screen once. Do not add tests that only restate static text or styling.
+- Localized behavior fixes: run the relevant existing tests and type or build check. Add a focused regression test when the behavior warrants one. Build the mounted output only when packaging, imports, or the `/sales-brain/` deployment path is affected.
+- Authentication, authorization, customer identity, pricing/costing, shared API contracts, dependencies, or mounted-release integration: run `pnpm test`, `pnpm run build`, and `pnpm run build:mounted` once on the final combined change, plus focused security, pricing, or data checks appropriate to the risk.
 
-For changes intended for OpsBrain deployment, also run:
+After a passing check, rerun it only when a later edit affects its coverage, the environment changes, or new evidence raises a concrete concern. Reuse valid CI or local evidence for the same revision and environment rather than duplicating work.
 
-```bash
-pnpm run build:mounted
-```
+For UI behavior, one focused visual check complements automated checks. Use an isolated preview for workflows that can write business data, and retain the production/data safeguards.
 
-For UI work, manually verify the affected workflow.
+## Usage and stopping rules
 
-Automated tests do not replace visual verification.
+- Work directly by default. Read the responsible code and directly related tests; stop discovery once the smallest safe change is understood.
+- Use targeted searches, bounded command output, and the smallest relevant tool or connector. Reuse evidence already collected; do not repeat repository inventories or research for completeness.
+- Inspect the final diff once. Do not request a separate review for routine changes already receiving GitHub review; add one only for a concrete high-risk concern or an explicit request.
+- Keep GitHub review activity focused: prefer one review request when the pull request is ready, not repeated requests after each edit.
+- Stop when the requested behavior is implemented, proportionate validation passes, and the work is ready for the user or reviewer to use. Do not expand into unrelated cleanup, speculative risks, extra test matrices, or repeated review/fix loops.
+- Default to the project’s economical model and ordinary tools for routine tasks. Use more costly reasoning or tooling only when complexity, unresolved failures, or high-impact decisions justify it.
 
-If a check is skipped, explain why.
+These rules reduce duplicate work; they do not weaken authorization, data protection, required validation, or evidence needed to resolve a real failure.
 
 ---
 
-# OpsBrain Handoff
+# Completion and OpsBrain handoff
 
-Before declaring a SalesBrain change production-ready:
+Do not declare a SalesBrain task complete merely because code was changed. It is complete when the requested workflow is usable by its intended employee, proportionate validation has passed, the intended files are committed and pushed on the task branch, and a pull request is created or updated when the repository uses pull requests.
 
-1. Confirm SalesBrain tests pass.
-2. Confirm the normal build passes.
-3. Confirm `build:mounted` passes.
-4. Replace the OpsBrain mounted SalesBrain output using the generated build.
-5. Run the OpsBrain repository's required validation.
-6. Verify SalesBrain from the OpsBrain Cloudflare preview.
-7. Confirm authentication and `/api/*` integration still work.
-8. Do not merge or deploy production without explicit authorization.
+For a change that updates the mounted OpsBrain application, complete the supported handoff:
+
+1. Build and validate SalesBrain according to the risk-based requirements above.
+2. Generate the mounted build and replace the OpsBrain deployment output using the documented process.
+3. Run the applicable OpsBrain validation once on the final combined change.
+4. Verify the affected employee workflow in the OpsBrain branch preview, including authentication and the relevant `/api/*` integration.
+5. Record any deployment requirements, remaining manual action, or meaningful limitation in the pull request.
+
+Do not merge or deploy production without explicit authorization. If the scope is source-only and does not require a mounted update, state that clearly rather than creating deployment work unnecessarily.
 
 ---
 
