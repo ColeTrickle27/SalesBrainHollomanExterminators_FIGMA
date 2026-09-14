@@ -57,11 +57,7 @@ const STEPS = [
   "Structures & Graph",
   "Findings & Moisture",
   "Inspection Photos",
-  "Review",
-  "Customer Presentation",
-  "Send to Customer",
-  "Accept & Sign",
-  "PestPac Handoff",
+  "Review & Report",
 ]
 
 const DOCUMENT_LABELS: Record<Exclude<SalesDocumentType, "agreement">, string> = {
@@ -151,10 +147,6 @@ export default function InspectionWizard(props: Props) {
     ...(next ? { currentStep: next } : {}),
   })
 
-  useEffect(() => {
-    if (step >= 7) void props.onLoadProviderState()
-  }, [step, props.inspection.id, props.onLoadProviderState])
-
   return <div className="pb-32 flex flex-col min-h-screen">
     <div className="bg-white border-b border-surface px-3 py-2 sticky top-0 z-10">
       <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide lg:justify-center">
@@ -176,22 +168,24 @@ export default function InspectionWizard(props: Props) {
       {step === 2 ? <StructuresStep inspection={props.inspection} data={data} onChange={props.onWorkflowDataChange} onOpenGraph={props.onOpenGraph} /> : null}
       {step === 3 ? <FindingsMoistureStep {...props} data={data} /> : null}
       {step === 4 ? <PhotosStep {...props} /> : null}
-      {step === 5 ? <ReviewStep inspection={props.inspection} data={data} onStatusChange={props.onStatusChange} onAddQuoteActivity={props.onAddQuoteActivity} /> : null}
-      {step === 6 ? <PresentationStep inspection={props.inspection} data={data} services={props.pricebookServices} packages={props.servicePackages} loading={props.pricebookLoading} error={props.pricebookError} onChange={props.onWorkflowDataChange} onSelectService={props.onSelectService} onPresentation={props.onPresentation} /> : null}
-      {step === 7 ? <SendToCustomerStep {...props} data={data} /> : null}
-      {step === 8 ? <AcceptSignStep {...props} data={data} /> : null}
-      {step === 9 ? <PestPacHandoffStep {...props} data={data} /> : null}
+      {step === 5 ? <InspectionReviewStep inspection={props.inspection} onOpenReport={props.onProposal} /> : null}
     </div>
 
     <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-surface px-4 py-3 z-20">
       <div className="max-w-5xl mx-auto flex items-center gap-3">
         <button onClick={() => updateStep(step - 1)} disabled={step === 1} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-surface text-steel font-semibold text-sm disabled:opacity-30"><ChevronLeft size={18} /> Back</button>
         <button onClick={() => { complete(); props.onSave() }} disabled={props.isSaving} className="px-4 py-2.5 rounded-xl border border-surface text-steel font-semibold text-sm flex items-center gap-1.5 disabled:opacity-50"><Save size={16} /> {props.isSaving ? "Saving..." : "Save"}</button>
-        <button onClick={() => { if (step < STEPS.length) complete(step + 1) }} disabled={step === STEPS.length} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-brand-red text-white font-bold font-display text-lg uppercase disabled:opacity-30">{step === STEPS.length ? "Complete in PestPac" : "Next"}{step < STEPS.length ? <ChevronRight size={18} /> : null}</button>
+        <button onClick={() => { if (step < STEPS.length) complete(step + 1); else { complete(); props.onProposal() } }} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-brand-red text-white font-bold font-display text-lg uppercase">{step === STEPS.length ? "Open inspection report" : "Next"}{step < STEPS.length ? <ChevronRight size={18} /> : null}</button>
       </div>
       {props.saveError ? <div className="max-w-5xl mx-auto mt-2 text-xs text-danger">{props.saveError}</div> : props.savedAt ? <div className="max-w-5xl mx-auto mt-2 text-xs text-success">Saved {new Date(props.savedAt).toLocaleTimeString()}</div> : null}
     </div>
   </div>
+}
+
+function InspectionReviewStep({ inspection, onOpenReport }: { inspection: SalesInspection; onOpenReport: () => void }) {
+  const visibleFindings = inspection.findings.filter((finding) => !finding.hidden)
+  const visiblePhotos = inspection.photos.filter((photo) => photo.customerVisible !== false)
+  return <StepContainer icon={<CheckCircle size={20} />} title="Review & Report" sub="Confirm the graph-synchronized inspection details before creating the customer report"><div className="grid sm:grid-cols-3 gap-3"><Summary label="Findings" value={String(visibleFindings.length)} /><Summary label="Report photos" value={String(visiblePhotos.length)} /><Summary label="Graph markers" value={String(inspection.markers.length)} /></div><div className="bg-white rounded-2xl p-4 shadow-sm"><h3 className="font-display text-base font-bold text-brand-dark uppercase">Ready for the customer-facing report</h3><p className="mt-2 text-sm text-steel">The report includes reviewed findings and customer-visible photos. Pricing, quote options, and signature capture are handled outside Sales Brain.</p><button onClick={onOpenReport} className="mt-4 w-full rounded-xl bg-brand-red py-3 font-display text-lg font-bold uppercase text-white">Open branded inspection report</button></div></StepContainer>
 }
 
 const QUOTE_INSPECTION_SECTIONS = [

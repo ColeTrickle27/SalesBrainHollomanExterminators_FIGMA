@@ -1,228 +1,149 @@
-import { useMemo, useState, type ReactNode } from "react"
-import { AlertTriangle, CalendarClock, CheckCircle, ChevronRight, FileText, Flame, MapPin, MessageSquarePlus, Plus, RefreshCw, Search, Snowflake, Sun, Trash2, X } from "lucide-react"
-
+import {
+  AlertTriangle,
+  CalendarClock,
+  ChevronRight,
+  ClipboardList,
+  FileText,
+  Plus,
+  RefreshCw,
+} from "lucide-react"
 import type { SalesBrainEstimateListItem } from "../services/opsBrain"
-import { LEAD_TYPE_OPTIONS, PREFERRED_CONTACT_OPTIONS, REFERRAL_SOURCE_OPTIONS } from "../types/figma-workflow"
-import { LEAD_ACTIVITY_TYPES, type LeadActivity, type LeadInput, type SalesDashboardData, type SalesLead } from "../types/sales-operations"
-import type { PricebookService } from "../types/pricebook"
 import type { OpsBrainUser } from "../types/user"
 
 interface DashboardProps {
-  services: PricebookService[]
   user: OpsBrainUser | null
   userLoading: boolean
   estimates: SalesBrainEstimateListItem[]
-  data: SalesDashboardData | null
   loading: boolean
   error: string | null
-  leadActivities: Record<string, LeadActivity[]>
   onStartInspection: () => void
   onOpenEstimate: (id: string) => void
-  onDeleteEstimate: (id: string) => Promise<void>
   onRefresh: () => void
-  onCreateLead: (input: LeadInput) => Promise<SalesLead>
-  onUpdateLead: (id: string, input: Partial<LeadInput>) => Promise<SalesLead>
-  onStartQuoteForLead: (lead: SalesLead) => void
-  onLoadActivities: (leadId: string) => Promise<LeadActivity[]>
-  onAddActivity: (leadId: string, input: Pick<LeadActivity, "type" | "note" | "happenedAt" | "quoteId">) => Promise<LeadActivity>
 }
 
-const temperatureStyle = {
-  hot: { className: "bg-danger-light text-danger", icon: Flame },
-  warm: { className: "bg-amber-light text-amber", icon: Sun },
-  cold: { className: "bg-info-light text-info", icon: Snowflake },
-} as const
-
-const leadStatusStyle = {
-  open: "bg-info-light text-info",
-  sold: "bg-success-light text-success",
-  lost: "bg-danger-light text-danger",
-} as const
-
-export default function Dashboard(props: DashboardProps) {
-  const { user, userLoading, estimates, data, loading, error, onStartInspection, onOpenEstimate, onRefresh } = props
-  const [leadQuery, setLeadQuery] = useState("")
-  const [leadStatus, setLeadStatus] = useState("all")
-  const [temperature, setTemperature] = useState("all")
-  const [leadFormOpen, setLeadFormOpen] = useState(false)
-  const [selectedLead, setSelectedLead] = useState<SalesLead | null>(null)
-  const leads = data?.leads ?? []
-  const drafts = estimates.filter((item) => item.status === "draft")
-  const pending = estimates.filter((item) => item.status === "sent")
-  const filteredLeads = useMemo(() => {
-    const query = leadQuery.trim().toLowerCase()
-    return leads.filter((lead) => (leadStatus === "all" || lead.status === leadStatus) && (temperature === "all" || lead.temperature === temperature) && (!query || `${lead.customerName} ${lead.companyName} ${lead.phone} ${lead.email}`.toLowerCase().includes(query)))
-  }, [leadQuery, leads, leadStatus, temperature])
+export default function Dashboard({
+  user,
+  userLoading,
+  estimates,
+  loading,
+  error,
+  onStartInspection,
+  onOpenEstimate,
+  onRefresh,
+}: DashboardProps) {
   const firstName = user?.name?.split(/\s+/)[0] || "there"
-  const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })
-
-  const openLead = async (lead: SalesLead) => {
-    setSelectedLead(lead)
-    await props.onLoadActivities(lead.id).catch(() => [])
-  }
-
+  const today = new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  })
   return (
-    <div className="pb-24">
+    <div className="pb-10">
       <div className="bg-brand-charcoal px-5 pt-5 pb-6">
-        <div className="text-silver text-xs uppercase tracking-widest font-semibold font-mono mb-0.5">{today}</div>
-        <div className="font-display text-3xl font-bold text-white tracking-wide">{userLoading ? "Loading your workspace..." : `Good morning, ${firstName}`}</div>
-        <div className="grid grid-cols-3 gap-3 mt-5">
-          <Stat label="Open Leads" value={leads.filter((lead) => lead.status === "open").length} />
-          <Stat label="Open Drafts" value={drafts.length} />
-          <Stat label="Pending Quotes" value={pending.length} />
+        <div className="text-silver text-xs uppercase tracking-widest font-semibold font-mono mb-0.5">
+          {today}
         </div>
+        <div className="font-display text-3xl font-bold text-white tracking-wide">
+          {userLoading
+            ? "Loading your inspections..."
+            : `Good morning, ${firstName}`}
+        </div>
+        <p className="mt-2 max-w-xl text-sm text-silver">
+          Document the structure in BugMan Graphs, then review the automatically
+          synchronized findings and photos in one professional inspection
+          record.
+        </p>
       </div>
-
       <div className="px-4 pt-4 space-y-6 max-w-6xl mx-auto">
-        <div className="grid sm:grid-cols-2 gap-3">
-          <button onClick={() => setLeadFormOpen(true)} className="bg-brand-red rounded-2xl p-4 flex items-center gap-3 text-left shadow-sm">
-            <div className="w-10 h-10 bg-black/20 rounded-xl flex items-center justify-center"><Plus size={22} className="text-white" /></div>
-            <div><div className="font-display text-lg font-bold text-white uppercase">New Lead</div><div className="text-white/70 text-xs">Capture an opportunity before customer setup</div></div>
-          </button>
-          <button onClick={onStartInspection} className="bg-brand-dark rounded-2xl p-4 flex items-center gap-3 text-left shadow-sm">
-            <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center"><FileText size={21} className="text-white" /></div>
-            <div><div className="font-display text-lg font-bold text-white uppercase">New Quote</div><div className="text-white/65 text-xs">Select an existing Ops Brain customer</div></div>
-          </button>
-        </div>
-
-        {error ? <div className="bg-danger-light border border-danger/25 rounded-2xl p-4 flex gap-2 text-sm text-danger"><AlertTriangle size={17} />{error}</div> : null}
-
-        <section>
-          <SectionHeading title="Leads" count={filteredLeads.length} onRefresh={onRefresh} />
-          <div className="grid md:grid-cols-[1fr_auto] gap-2 mb-3">
-            <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-silver" /><input value={leadQuery} onChange={(event) => setLeadQuery(event.target.value)} className="w-full bg-white border border-surface rounded-xl pl-8 pr-3 py-2.5 text-sm" placeholder="Search leads..." /></div>
-            <div className="flex gap-2 overflow-x-auto">{["all", "open", "sold", "lost"].map((value) => <button key={value} onClick={() => setLeadStatus(value)} className={`px-3 py-2 rounded-xl text-xs font-bold border capitalize ${leadStatus === value ? "bg-brand-dark border-brand-dark text-white" : "bg-white border-surface text-steel"}`}>{value}</button>)}</div>
+        <button
+          onClick={onStartInspection}
+          className="w-full sm:w-auto bg-brand-red rounded-2xl p-4 flex items-center gap-3 text-left shadow-sm"
+        >
+          <div className="w-10 h-10 bg-black/20 rounded-xl flex items-center justify-center">
+            <Plus size={22} className="text-white" />
           </div>
-          <div className="flex items-center gap-2 overflow-x-auto mb-3"><span className="text-xs font-semibold text-steel">Temperature</span>{["all", "hot", "warm", "cold"].map((value) => <button key={value} onClick={() => setTemperature(value)} className={`px-3 py-2 rounded-xl text-xs font-bold border capitalize ${temperature === value ? "bg-brand-dark border-brand-dark text-white" : "bg-white border-surface text-steel"}`}>{value}</button>)}</div>
-          {loading ? <Loading label="Loading SalesBrain dashboard..." /> : null}
-          {!loading && filteredLeads.length === 0 ? <Empty title="No matching leads" detail="Change the status, temperature, or search filters to view other leads." /> : null}
-          <div className="grid lg:grid-cols-2 gap-3">{filteredLeads.map((lead) => <LeadCard key={lead.id} lead={lead} onOpen={() => void openLead(lead)} />)}</div>
+          <div>
+            <div className="font-display text-lg font-bold text-white uppercase">
+              Start inspection
+            </div>
+            <div className="text-white/70 text-xs">
+              Select an existing Ops Brain customer, then open BugMan Graphs
+            </div>
+          </div>
+        </button>
+        {error ? (
+          <div className="bg-danger-light border border-danger/25 rounded-2xl p-4 flex gap-2 text-sm text-danger">
+            <AlertTriangle size={17} />
+            {error}
+          </div>
+        ) : null}
+        <section>
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <div className="flex items-center gap-2">
+              <ClipboardList size={20} className="text-brand-red" />
+              <h1 className="font-display text-xl font-bold text-brand-dark uppercase tracking-wide">
+                Saved inspections
+              </h1>
+              <span className="bg-brand-dark text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                {estimates.length}
+              </span>
+            </div>
+            <button
+              onClick={onRefresh}
+              className="text-xs text-brand-red font-semibold flex items-center gap-1"
+            >
+              <RefreshCw size={13} /> Refresh
+            </button>
+          </div>
+          {loading ? (
+            <div className="bg-white rounded-2xl p-7 text-center text-sm text-steel">
+              Loading saved inspections…
+            </div>
+          ) : null}
+          {!loading && estimates.length === 0 ? (
+            <div className="bg-white rounded-2xl p-7 text-center">
+              <ClipboardList size={32} className="text-silver mx-auto mb-2" />
+              <div className="font-semibold text-brand-dark">
+                No saved inspections
+              </div>
+              <p className="mt-1 text-sm text-steel">
+                Start an inspection to create a graph-connected record.
+              </p>
+            </div>
+          ) : null}
+          <div className="grid lg:grid-cols-2 gap-3">
+            {estimates.map((inspection) => (
+              <button
+                key={inspection.id}
+                onClick={() => onOpenEstimate(inspection.id)}
+                className="bg-white rounded-2xl p-4 shadow-sm hover:shadow-md transition-all text-left flex items-start gap-3"
+              >
+                <div className="w-10 h-10 shrink-0 bg-surface rounded-xl flex items-center justify-center">
+                  <FileText size={18} className="text-steel" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-brand-dark truncate">
+                    {inspection.customerName || "Customer not selected"}
+                  </div>
+                  <div className="text-xs text-steel truncate mt-1">
+                    {inspection.locationAddress ||
+                      inspection.locationName ||
+                      "No location"}
+                  </div>
+                  <div className="flex items-center gap-1 mt-2 text-xs text-silver">
+                    <CalendarClock size={12} /> Updated{" "}
+                    {new Date(inspection.updatedAt).toLocaleDateString()}
+                    <span className="font-mono ml-auto">
+                      {inspection.estimateNumber}
+                    </span>
+                  </div>
+                </div>
+                <ChevronRight size={17} className="text-silver mt-2" />
+              </button>
+            ))}
+          </div>
         </section>
-
-        <QuoteSection title="Open Drafts" items={drafts} empty="No quote drafts are open." onOpen={onOpenEstimate} onDelete={props.onDeleteEstimate} />
-        <QuoteSection title="Pending Quotes" items={pending} empty="No sent quotes are awaiting a decision." onOpen={onOpenEstimate} onDelete={props.onDeleteEstimate} />
-
-        <div className="flex flex-wrap items-center justify-between gap-2 bg-success-light border border-success/20 rounded-2xl px-4 py-3">
-          <div className="flex items-center gap-2"><CheckCircle size={16} className="text-success" /><span className="text-sm text-success font-semibold">Connected to Ops Brain storage</span></div>
-          <span className="text-xs text-success/70 font-mono">D1 records + R2 files</span>
-        </div>
       </div>
-
-      {leadFormOpen ? <LeadForm services={props.services} onExistingCustomer={() => { setLeadFormOpen(false); onStartInspection() }} onClose={() => setLeadFormOpen(false)} onSave={async (input) => { await props.onCreateLead(input); setLeadFormOpen(false) }} /> : null}
-      {selectedLead ? <LeadDetail lead={selectedLead} activities={props.leadActivities[selectedLead.id] || []} onClose={() => setSelectedLead(null)} onUpdate={async (input) => { const updated = await props.onUpdateLead(selectedLead.id, input); setSelectedLead(updated) }} onStartQuote={() => props.onStartQuoteForLead(selectedLead)} onAddActivity={async (input) => { await props.onAddActivity(selectedLead.id, input) }} /> : null}
     </div>
   )
 }
-
-function Stat({ label, value }: { label: string; value: number }) {
-  return <div className="min-w-0 bg-white/8 rounded-xl p-3 text-center"><div className="font-display text-3xl font-bold text-white leading-none">{value}</div><div className="text-silver text-xs mt-1 leading-tight">{label}</div></div>
-}
-
-function SectionHeading({ title, count, onRefresh }: { title: string; count: number; onRefresh: () => void }) {
-  return <div className="flex items-center justify-between gap-3 mb-3"><div className="flex items-center gap-2"><h2 className="font-display text-xl font-bold text-brand-dark uppercase tracking-wide">{title}</h2><span className="bg-brand-red text-white text-xs font-bold px-2 py-0.5 rounded-full">{count}</span></div><button onClick={onRefresh} className="text-xs text-brand-red font-semibold flex items-center gap-1"><RefreshCw size={13} /> Refresh</button></div>
-}
-
-function LeadCard({ lead, onOpen }: { lead: SalesLead; onOpen: () => void }) {
-  const style = temperatureStyle[lead.temperature]
-  const Icon = style.icon
-  return <button onClick={onOpen} className="bg-white rounded-2xl p-4 shadow-sm text-left flex items-start gap-3"><div className={`w-10 h-10 rounded-xl flex items-center justify-center ${style.className}`}><Icon size={18} /></div><div className="flex-1 min-w-0"><div className="flex items-center justify-between gap-2"><span className="font-semibold text-brand-dark truncate">{lead.customerName}</span><div className="flex gap-1"><span className={`text-[10px] uppercase font-bold px-2 py-1 rounded-full ${leadStatusStyle[lead.status]}`}>{lead.status}</span><span className={`text-[10px] uppercase font-bold px-2 py-1 rounded-full ${style.className}`}>{lead.temperature}</span></div></div><div className="text-xs text-steel mt-1 truncate">{lead.companyName || lead.phone || lead.email || "Contact information needed"}</div><div className="flex items-center gap-1 mt-2 text-xs text-silver"><CalendarClock size={12} />{lead.nextFollowUpAt ? `Follow up ${new Date(lead.nextFollowUpAt).toLocaleDateString()}` : `Last touch ${new Date(lead.lastInteractionAt || lead.updatedAt).toLocaleDateString()}`}</div></div><ChevronRight size={17} className="text-silver mt-2" /></button>
-}
-
-function QuoteSection({ title, items, empty, onOpen, onDelete }: { title: string; items: SalesBrainEstimateListItem[]; empty: string; onOpen: (id: string) => void; onDelete: (id: string) => Promise<void> }) {
-  return <section><div className="flex items-center gap-2 mb-3"><h2 className="font-display text-xl font-bold text-brand-dark uppercase">{title}</h2><span className="bg-brand-dark text-white text-xs font-bold px-2 py-0.5 rounded-full">{items.length}</span></div>{items.length === 0 ? <Empty title={empty} detail="Saved quotes will appear here automatically." /> : <div className="grid lg:grid-cols-2 gap-3">{items.map((item) => <article key={item.id} className="bg-white rounded-2xl p-4 shadow-sm flex items-start gap-3"><button onClick={() => onOpen(item.id)} className="flex flex-1 min-w-0 items-start gap-3 text-left"><div className="w-10 h-10 shrink-0 bg-surface rounded-xl flex items-center justify-center"><FileText size={18} className="text-steel" /></div><div className="flex-1 min-w-0"><div className="font-semibold text-brand-dark truncate">{item.customerName || "Customer not selected"}</div><div className="flex items-center gap-1 mt-1 text-xs text-steel"><MapPin size={12} />{item.locationAddress || item.locationName || "No location"}</div><div className="mt-2 flex justify-between text-xs"><span className="font-mono text-silver">{item.estimateNumber}</span>{item.totalCents !== null ? <span className="font-mono font-bold">${(item.totalCents / 100).toLocaleString()}</span> : null}</div></div><ChevronRight size={17} className="text-silver mt-2" /></button><button onClick={() => { if (window.confirm(`Delete open quote ${item.estimateNumber}? This removes it from SalesBrain.`)) void onDelete(item.id).catch(() => undefined) }} className="p-2 text-danger hover:bg-danger-light rounded-xl" aria-label={`Delete quote ${item.estimateNumber}`} title="Delete open quote"><Trash2 size={17} /></button></article>)}</div>}</section>
-}
-
-const EMPTY_LEAD: LeadInput = {
-  leadType: "New Customer", customerName: "", company: "", companyName: "", first: "", last: "",
-  locationName: "", streetAddress: "", city: "", state: "NC", zip: "", phone: "", email: "",
-  preferredContact: "Text", referralSource: "", referralSourceOther: "", temperature: "warm",
-  status: "open", notes: "", nextFollowUpAt: "",
-}
-
-export function LeadEditModal({ lead, services, onClose, onSave }: { lead: SalesLead; services: PricebookService[]; onClose: () => void; onSave: (input: LeadInput) => Promise<void> }) {
-  return <LeadForm services={services} title="Edit Lead" initial={leadInputFromLead(lead)} showStatus showCancel onClose={onClose} onSave={onSave} />
-}
-
-function LeadForm({ services, onExistingCustomer, onClose, onSave, initial = EMPTY_LEAD, title = "New Lead", showStatus = false, showCancel = false }: { services: PricebookService[]; onExistingCustomer?: () => void; onClose: () => void; onSave: (input: LeadInput) => Promise<void>; initial?: LeadInput; title?: string; showStatus?: boolean; showCancel?: boolean }) {
-  const [form, setForm] = useState(() => ({ ...initial }))
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState("")
-  const save = async () => {
-    const customerName = form.company.trim() || [form.first.trim(), form.last.trim()].filter(Boolean).join(" ")
-    if (!customerName) { setError("Enter a company or customer first and last name."); return }
-    setSaving(true)
-    try { await onSave({ ...form, companyName: form.company.trim(), customerName, state: "NC", nextFollowUpAt: form.nextFollowUpAt ? new Date(form.nextFollowUpAt).toISOString() : "" }) }
-    catch (value) { setError(value instanceof Error ? value.message : "Unable to save lead."); setSaving(false) }
-  }
-  return <Modal title={title} onClose={onClose}><div className="space-y-4">
-    <Choice label="Lead Type" options={LEAD_TYPE_OPTIONS} value={form.leadType} onChange={(value) => { if (value === "Existing Customer" && onExistingCustomer) { onExistingCustomer(); return } setForm({ ...form, leadType: value as LeadInput["leadType"] }) }} />
-    <div className="grid grid-cols-2 gap-3 rounded-xl bg-surface p-3 text-sm"><div>Bill To: <strong>{form.billToNumber || "New/Unassigned"}</strong></div><div>Location: <strong>{form.locationNumber || "New/Unassigned"}</strong></div></div>
-    <div className="font-display text-base font-bold text-brand-dark uppercase">Location Fields</div>
-    <div className="grid sm:grid-cols-3 gap-3"><Field label="Company" type="text" value={form.company || ""} onChange={(value) => setForm({ ...form, company: value })} /><Field label="First Name" type="text" value={form.first || ""} onChange={(value) => setForm({ ...form, first: value })} /><Field label="Last Name" type="text" value={form.last || ""} onChange={(value) => setForm({ ...form, last: value })} /></div>
-    <div className="grid sm:grid-cols-[2fr_1fr_80px_100px] gap-3"><Field label="Street Address" type="text" value={form.streetAddress || ""} onChange={(value) => setForm({ ...form, streetAddress: value })} /><Field label="City" type="text" value={form.city || ""} onChange={(value) => setForm({ ...form, city: value })} /><Field label="State" type="text" value={form.state || ""} onChange={(value) => setForm({ ...form, state: value as "NC" })} disabled /><Field label="Zip" type="text" value={form.zip || ""} onChange={(value) => setForm({ ...form, zip: value })} /></div>
-    <div className="grid sm:grid-cols-3 gap-3"><Field label="Phone" type="tel" value={form.phone || ""} onChange={(value) => setForm({ ...form, phone: value })} /><Field label="Email" type="email" value={form.email || ""} onChange={(value) => setForm({ ...form, email: value })} /><label className="block min-w-0 text-xs font-semibold text-steel">Customer Type<select aria-label="Customer Type" value={form.customerType || ""} onChange={(event) => setForm({ ...form, customerType: event.target.value as LeadInput["customerType"] })} className="mt-1 w-full border border-surface rounded-xl px-3 py-2.5 text-sm text-brand-dark"><option value="">Select Customer Type</option><option value="Residential">Residential</option><option value="Commercial">Commercial</option></select></label></div>
-    <fieldset><legend className="text-xs font-semibold text-steel mb-1">Primary/Alternate Contact</legend><div className="grid sm:grid-cols-2 gap-3"><Field label="Name" type="text" value={form.contactName || ""} onChange={(value) => setForm({ ...form, contactName: value })} /><Field label="Phone Number" type="tel" value={form.contactPhone || ""} onChange={(value) => setForm({ ...form, contactPhone: value })} /></div></fieldset>
-    <div><div className="text-xs font-semibold text-steel mb-1">Service</div><details className="border border-surface rounded-xl p-3"><summary className="cursor-pointer text-sm text-brand-dark">{form.serviceIds?.length ? `${form.serviceIds.length} service(s) selected` : "Select Service(s)"}</summary><div className="mt-2 space-y-2">{services.filter((service) => service.active || form.serviceIds?.includes(service.id)).map((service) => <label key={service.id} className="flex gap-2 items-center text-sm"><input type="checkbox" checked={form.serviceIds?.includes(service.id) || false} onChange={(event) => setForm({ ...form, serviceIds: event.target.checked ? [...(form.serviceIds || []), service.id] : (form.serviceIds || []).filter((id) => id !== service.id) })} />{service.name}</label>)}{services.length === 0 ? <p className="text-sm text-steel">No services available. Check the service catalog.</p> : null}</div></details></div>
-    <Choice label="Lead Temp" options={["hot", "warm", "cold"]} value={form.temperature} onChange={(value) => setForm({ ...form, temperature: value as LeadInput["temperature"] })} />
-    <div className="grid sm:grid-cols-2 gap-3"><Field label="Next Touch-Point Date" type="datetime-local" value={form.nextFollowUpAt || ""} onChange={(value) => setForm({ ...form, nextFollowUpAt: value })} /><label className="block min-w-0 text-xs font-semibold text-steel">Next Touch-Point<select aria-label="Next Touch-Point" value={form.nextTouchPoint || ""} onChange={(event) => setForm({ ...form, nextTouchPoint: event.target.value as LeadInput["nextTouchPoint"] })} className="mt-1 w-full border border-surface rounded-xl px-3 py-2.5 text-sm text-brand-dark"><option value="">Select Next Touch-Point</option><option value="Contact">Contact</option><option value="Inspect">Inspect</option><option value="Send Quote">Send Quote</option><option value="Follow-Up">Follow-Up</option><option value="X-Date">X-Date</option></select></label></div>
-    <details><summary className="cursor-pointer text-sm font-semibold text-steel">Additional Details</summary><div className="mt-3 space-y-3">
-    <Choice label="Preferred Contact" options={PREFERRED_CONTACT_OPTIONS} value={form.preferredContact} onChange={(value) => setForm({ ...form, preferredContact: value })} />
-    <Choice label="Referral Source" options={REFERRAL_SOURCE_OPTIONS} value={form.referralSource} onChange={(value) => setForm({ ...form, referralSource: value })} />
-    {form.referralSource === "Other" ? <Field label="Other Referral Source" value={form.referralSourceOther} onChange={(value) => setForm({ ...form, referralSourceOther: value })} /> : null}
-    <Field label="Location Name" type="text" value={form.locationName || ""} onChange={(value) => setForm({ ...form, locationName: value })} />
-    </div></details>
-    {showStatus ? <Choice label="Lead Status" options={["open", "sold", "lost"]} value={form.status} onChange={(value) => setForm({ ...form, status: value as LeadInput["status"] })} /> : null}
-    <label className="block text-xs font-semibold text-steel">Notes<textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} rows={3} className="mt-1 w-full border border-surface rounded-xl px-3 py-2 text-sm" /></label>
-    {error ? <div className="text-sm text-danger">{error}</div> : null}<div className={showCancel ? "grid grid-cols-2 gap-2" : "grid"}>{showCancel ? <button type="button" onClick={onClose} disabled={saving} className="w-full border border-surface text-brand-dark rounded-xl py-3 font-bold disabled:opacity-50">Cancel</button> : null}<button onClick={() => void save()} disabled={saving} className="w-full bg-brand-red text-white rounded-xl py-3 font-display text-lg font-bold uppercase disabled:opacity-50">{saving ? "Saving..." : "Save Lead"}</button></div>
-  </div></Modal>
-}
-
-function localDateTime(value: string) {
-  const date = new Date(value)
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
-}
-
-function leadInputFromLead(lead: SalesLead): LeadInput {
-  return {
-    leadType: lead.leadType,
-    customerName: lead.customerName,
-    company: lead.company,
-    first: lead.first,
-    last: lead.last,
-    locationName: lead.locationName,
-    streetAddress: lead.streetAddress,
-    city: lead.city,
-    state: lead.state,
-    zip: lead.zip,
-    companyName: lead.companyName,
-    phone: lead.phone,
-    email: lead.email,
-    preferredContact: lead.preferredContact,
-    referralSource: lead.referralSource,
-    referralSourceOther: lead.referralSourceOther,
-    temperature: lead.temperature,
-    status: lead.status,
-    notes: lead.notes,
-    billToNumber: lead.billToNumber,
-    locationNumber: lead.locationNumber,
-    customerType: lead.customerType,
-    contactName: lead.contactName,
-    contactPhone: lead.contactPhone,
-    serviceIds: lead.serviceIds,
-    nextTouchPoint: lead.nextTouchPoint,
-    nextFollowUpAt: lead.nextFollowUpAt ? localDateTime(lead.nextFollowUpAt) : "",
-  }
-}
-
-function LeadDetail({ lead, activities, onClose, onUpdate, onStartQuote, onAddActivity }: { lead: SalesLead; activities: LeadActivity[]; onClose: () => void; onUpdate: (input: Partial<LeadInput>) => Promise<void>; onStartQuote: () => void; onAddActivity: (input: Pick<LeadActivity, "type" | "note" | "happenedAt" | "quoteId">) => Promise<void> }) {
-  const [activityOpen, setActivityOpen] = useState(false)
-  const [type, setType] = useState("Called")
-  const [note, setNote] = useState("")
-  return <Modal title={lead.customerName} onClose={onClose}><div className="space-y-4"><div className="grid sm:grid-cols-2 gap-3"><Choice label="Temperature" options={["hot", "warm", "cold"]} value={lead.temperature} onChange={(value) => void onUpdate({ temperature: value as LeadInput["temperature"] })} /><Choice label="Lead Status" options={["open", "sold", "lost"]} value={lead.status} onChange={(value) => void onUpdate({ status: value as LeadInput["status"] })} /></div><div className="bg-surface rounded-xl p-3 text-sm text-brand-dark"><div>{lead.phone || "No phone"} · {lead.email || "No email"}</div><div className="text-xs text-steel mt-1">Preferred: {lead.preferredContact || "Not selected"} · Source: {lead.referralSource || "Not selected"}</div></div><button onClick={onStartQuote} className="w-full bg-brand-red text-white rounded-xl py-3 font-bold flex items-center justify-center gap-2"><FileText size={17} /> Start Quote</button><button onClick={() => setActivityOpen((value) => !value)} className="w-full bg-brand-dark text-white rounded-xl py-3 font-bold flex items-center justify-center gap-2"><MessageSquarePlus size={17} /> Add Customer Interaction</button>{activityOpen ? <div className="border border-surface rounded-2xl p-3 space-y-3"><Choice label="Interaction" options={LEAD_ACTIVITY_TYPES} value={type} onChange={setType} /><Field label="Notes" value={note} onChange={setNote} /><button onClick={async () => { await onAddActivity({ type, note, happenedAt: new Date().toISOString() }); setNote(""); setActivityOpen(false) }} className="w-full bg-brand-red text-white rounded-xl py-2.5 font-bold">Log Interaction</button></div> : null}<div><h3 className="font-display text-lg font-bold text-brand-dark uppercase mb-2">Activity Timeline</h3>{activities.length === 0 ? <div className="text-sm text-steel">No interactions recorded yet.</div> : <div className="space-y-2">{activities.map((activity) => <div key={activity.id} className="border-l-2 border-brand-red pl-3 py-1"><div className="text-sm font-semibold text-brand-dark">{activity.type}</div><div className="text-xs text-steel">{new Date(activity.happenedAt).toLocaleString()} · {activity.createdBy}</div>{activity.note ? <p className="text-sm text-steel mt-1">{activity.note}</p> : null}</div>)}</div>}</div></div></Modal>
-}
-
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) { return <div className="fixed inset-0 z-50 bg-black/55 flex items-end sm:items-center justify-center p-4" onClick={onClose}><div className="bg-white rounded-3xl p-5 w-full max-w-2xl max-h-[92vh] overflow-y-auto" onClick={(event) => event.stopPropagation()}><div className="flex items-center justify-between mb-4"><h2 className="font-display text-2xl font-bold text-brand-dark uppercase">{title}</h2><button onClick={onClose} className="text-silver" aria-label="Close"><X size={20} /></button></div>{children}</div></div> }
-function Choice({ label, options, value, onChange }: { label: string; options: readonly string[]; value: string; onChange: (value: string) => void }) { return <div><div className="text-xs font-semibold text-steel mb-1">{label}</div><div className="flex flex-wrap gap-2">{options.map((option) => <button type="button" key={option} onClick={() => onChange(option)} className={`px-3 py-2 rounded-xl text-xs font-bold border capitalize ${value === option ? "bg-brand-dark border-brand-dark text-white" : "bg-white border-surface text-steel"}`}>{option}</button>)}</div></div> }
-function Field({ label, value, onChange, type = "text", disabled = false }: { label: string; value: string; onChange: (value: string) => void; type?: string; disabled?: boolean }) { return <label className="block min-w-0 text-xs font-semibold text-steel">{label}<input type={type} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)} className="mt-1 w-full border border-surface rounded-xl px-3 py-2.5 text-sm text-brand-dark disabled:bg-surface disabled:text-steel" /></label> }
-function Empty({ title, detail }: { title: string; detail: string }) { return <div className="bg-white rounded-2xl p-6 text-center shadow-sm"><div className="font-semibold text-brand-dark">{title}</div><div className="text-sm text-steel mt-1">{detail}</div></div> }
-function Loading({ label }: { label: string }) { return <div className="bg-white rounded-2xl p-6 text-center text-sm text-steel">{label}</div> }
