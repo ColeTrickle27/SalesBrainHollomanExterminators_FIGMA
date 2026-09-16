@@ -1,6 +1,10 @@
 # SalesBrain for Holloman Exterminators
 
-This repository is the source implementation for the SalesBrain tool mounted inside Holloman Ops Brain at `/sales-brain/`.
+SalesBrain is an independent sales, leads, quotes, proposals, and signatures application. This repository owns its source and builds. OpsBrain is the operations hub.
+
+The current production delivery still uses the compatibility mount `/sales-brain/` inside OpsBrain. Keep it working until a standalone deployment and authenticated API workflow are verified. A standalone frontend build alone does not establish that readiness.
+
+BugManGraphs owns graphing, measurements, and site plans. Inventory owns inventory. holloman-mcp and shared APIs are the shared integration layer. Preserve existing OpsBrain API contracts and PestPac record ownership. The future inspection app will be a separate named product. Never import sibling app source or edit their compiled assets as development source.
 
 ## Local development
 

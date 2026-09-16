@@ -3,7 +3,7 @@
  *
  * Sales Brain does not implement its own structure-drawing or diagramming
  * system. Property inspection is owned by BugMan Graphs (the Flutter app in
- * ColeTrickle27/BugManInspects, deployed as a web build and already embedded
+ * ColeTrickle27/BugManGraphs, deployed as a web build and already embedded
  * into Ops Brain at /bugman-graphs/). `PropertyInspection` is the thin
  * reference Sales Brain keeps to a BugMan Graph document -- not a
  * reimplementation of it.
@@ -22,7 +22,7 @@ export interface PropertyStructureSummary {
 /**
  * Sales Brain's reference to a BugMan Graph. Mirrors the identifiers used by
  * Ops Brain's `/api/bugman-graphs/save|load|upload` routes and the
- * `GraphDocument` / `GraphCustomerInfo` models in BugManInspects
+ * `GraphDocument` / `GraphCustomerInfo` models in BugManGraphs
  * (lib/models/graph_document.dart).
  */
 export interface PropertyInspection {
