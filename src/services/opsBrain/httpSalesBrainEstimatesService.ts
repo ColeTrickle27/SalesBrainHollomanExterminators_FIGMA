@@ -102,17 +102,19 @@ export class HttpSalesBrainEstimatesService
   }
 
   async createProposalPdf(id: string) {
-    return this.request<{ key: string; name: string; url: string }>(
+    const result = await this.request<{ key: string; name: string; url: string }>(
       `/sales-brain/estimates/${encodeURIComponent(id)}/proposal.pdf`,
       { method: "POST" },
     )
+    return { ...result, url: this.config.baseUrl ? new URL(result.url, this.config.baseUrl).href : result.url }
   }
 
   async createDocument(id: string, type: import("../../types/sales-operations").SalesDocumentType) {
-    return this.request<{ document: import("../../types/sales-operations").SalesGeneratedDocument; key: string; name: string; url: string }>(
+    const result = await this.request<{ document: import("../../types/sales-operations").SalesGeneratedDocument; key: string; name: string; url: string }>(
       `/sales-brain/estimates/${encodeURIComponent(id)}/documents`,
       { method: "POST", body: JSON.stringify({ type }) },
     )
+    return { ...result, url: this.config.baseUrl ? new URL(result.url, this.config.baseUrl).href : result.url }
   }
 
   async listDocuments(id: string) {

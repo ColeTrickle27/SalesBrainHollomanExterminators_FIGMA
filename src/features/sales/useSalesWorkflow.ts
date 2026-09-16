@@ -526,6 +526,7 @@ export function useSalesWorkflow() {
   const [currentUser, setCurrentUser] = useState<OpsBrainUser | null>(null)
 
   const [currentUserLoading, setCurrentUserLoading] = useState(true)
+  const [sessionRevision, setSessionRevision] = useState(0)
 
   const updateInspection = useCallback(
     (updater: (current: SalesInspection) => SalesInspection) => {
@@ -677,7 +678,7 @@ export function useSalesWorkflow() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [sessionRevision])
 
   // R2/Ops Brain remains the source of truth. The browser retains only a
 
@@ -2969,6 +2970,11 @@ export function useSalesWorkflow() {
     currentUser,
 
     currentUserLoading,
+    refreshSession: () => {
+      setSessionRevision(value => value + 1)
+      void refreshOperations()
+      void refreshPricebook()
+    },
 
     total,
 

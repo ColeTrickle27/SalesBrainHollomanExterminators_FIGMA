@@ -7,6 +7,18 @@ const source = readFileSync(new URL("../src/services/opsBrain/httpSalesBrainEsti
 const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText.replace('from "./errors"', `from "${new URL("../src/services/opsBrain/errors.ts", import.meta.url).href}"`)
 const { HttpSalesBrainEstimatesService } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`)
 
+test("standalone generated proposal and document links resolve at OpsBrain", async () => {
+  const previousFetch = globalThis.fetch
+  globalThis.fetch = async () => Response.json({ key: "report", name: "report.pdf", url: "/api/download?key=report" })
+  try {
+    const standalone = new HttpSalesBrainEstimatesService({ baseUrl: "https://ops.holloman-ext.com" })
+    assert.equal((await standalone.createProposalPdf("quote")).url, "https://ops.holloman-ext.com/api/download?key=report")
+    assert.equal((await standalone.createDocument("quote", "inspection-report")).url, "https://ops.holloman-ext.com/api/download?key=report")
+    const mounted = new HttpSalesBrainEstimatesService({ baseUrl: "" })
+    assert.equal((await mounted.createProposalPdf("quote")).url, "/api/download?key=report")
+  } finally { globalThis.fetch = previousFetch }
+})
+
 test("copied photos keep finding identity but view and delete only the new stored object", async () => {
   const oldFetch = globalThis.fetch
   const calls = []

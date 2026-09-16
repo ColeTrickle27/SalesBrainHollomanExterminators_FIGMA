@@ -1,3 +1,4 @@
+import { opsBrainUrl } from "../services/opsBrain/appUrls"
 import { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, ChevronRight, MapPin, Search, User, X } from 'lucide-react'
 
@@ -95,7 +96,7 @@ export default function CustomerSearch({ onSelectCustomer, onClose }: Props) {
             <AlertTriangle size={18} className="text-danger mt-0.5" />
             <div className="text-sm text-danger">
               <div className="font-bold">Your Ops Brain session has expired.</div>
-              <a href="/" className="underline font-semibold">Return to Ops Brain and sign in</a>
+              <a href={opsBrainUrl()} target="_blank" rel="noopener noreferrer" className="underline font-semibold">Return to Ops Brain and sign in</a>
             </div>
           </div>
         ) : null}
