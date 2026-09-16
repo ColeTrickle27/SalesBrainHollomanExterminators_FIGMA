@@ -1,11 +1,8 @@
 /**
- * Real HTTP implementation of CurrentUserService, calling Ops Brain's
- * GET /api/me (functions/api/[[path]].js in ColeTrickle27/holloman-ops-brain).
- * Same same-origin / session-cookie dependency as HttpCustomerFilesService
- * (see that file's header comment) -- this only resolves a real user once
- * Sales Brain is served from Ops Brain's own origin (the /sales-brain/
- * mount), where the browser sends Ops Brain's existing hob_session cookie
- * automatically.
+ * Calls the protected OpsBrain API with its existing HTTP-only session cookie.
+ * Standalone SalesBrain uses the approved same-site origin sales.holloman-ext.com
+ * and an explicit API base URL; compatibility mounts use relative requests.
+ * The API validates the caller origin, session, and existing role permissions.
  */
 
 import type { OpsBrainUser } from "../../types/user";

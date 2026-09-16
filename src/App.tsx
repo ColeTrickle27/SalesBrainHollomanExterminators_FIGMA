@@ -1,3 +1,4 @@
+import { opsBrainUrl } from "./services/opsBrain/appUrls"
 import { signatureSendingBlocked } from "./features/sales/signatureEligibility"
 import { useEffect, useMemo, useState } from "react"
 
@@ -359,6 +360,8 @@ export default function App() {
         </div>
       ) : null}
 
+      {!workflow.currentUserLoading && !workflow.currentUser && <div role="status" className="bg-amber-50 border-b border-amber-200 p-3 text-sm">Sign in to Holloman to load and save your work. <a href={opsBrainUrl()} target="_blank" rel="noopener noreferrer" className="underline font-semibold">Open Holloman sign-in</a>. Keep this page open to preserve unsaved work. <button onClick={workflow.refreshSession} className="underline font-semibold">Check sign-in</button> after returning.</div>}
+
       <header className="bg-brand-black px-4 py-3 sticky top-0 z-30 shadow-lg">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
@@ -372,7 +375,7 @@ export default function App() {
               </button>
             ) : null}
             <a
-              href="/"
+              href={opsBrainUrl()}
               className="flex items-center gap-2.5 min-w-0"
               title="Return to Ops Brain"
             >

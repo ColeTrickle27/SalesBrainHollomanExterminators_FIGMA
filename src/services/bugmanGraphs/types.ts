@@ -1,5 +1,5 @@
 /**
- * JSON mirrors of BugManInspects' Dart models (lib/models/graph_document.dart,
+ * JSON mirrors of BugManGraphs' Dart models (lib/models/graph_document.dart,
  * lib/models/graph_annotation.dart), typed just deeply enough for Sales
  * Brain to read markers and customer info back out. Sales Brain must never
  * reconstruct or validate the full graph geometry (wall segments, shapes,
@@ -62,7 +62,7 @@ export interface BugManGraphDocument {
 
 /**
  * The envelope Ops Brain's /api/bugman-graphs/save|upload routes expect and
- * /load returns, matching HttpBugManPortalService in BugManInspects
+ * /load returns, matching HttpBugManPortalService in BugManGraphs
  * (lib/services/bugman_portal_service_web.dart).
  */
 export interface BugManGraphEnvelope {

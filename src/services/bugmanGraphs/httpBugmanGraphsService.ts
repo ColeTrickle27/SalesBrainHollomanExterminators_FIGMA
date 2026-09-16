@@ -1,7 +1,7 @@
 /**
  * Real HTTP implementation, calling Ops Brain's
  * /api/bugman-graphs/save|load|upload routes -- the same routes
- * HttpBugManPortalService in BugManInspects (Dart) calls. Request/response
+ * HttpBugManPortalService in BugManGraphs (Dart) calls. Request/response
  * envelopes below match functions/api/[[path]].js exactly:
  *
  *   POST /api/bugman-graphs/save?key=<existingKey?>
@@ -44,7 +44,7 @@ export class HttpBugManGraphsService implements BugManGraphsService {
 
   async openInspection({ billToNumber, locationNumber, graphKey, mode = "edit", visibleMarkerIds = [] }: OpenInspectionOptions) {
     const params = new URLSearchParams({ billTo: billToNumber, location: locationNumber });
-    // BugManInspects reads the existing R2 key from `graph`, not `key`.
+    // BugManGraphs reads the existing R2 key from `graph`, not `key`.
     if (graphKey) params.set("graph", graphKey);
     if (mode === "presentation") {
       params.set("mode", "presentation");

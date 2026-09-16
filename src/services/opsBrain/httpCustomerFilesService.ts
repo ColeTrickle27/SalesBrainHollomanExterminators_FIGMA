@@ -1,15 +1,8 @@
 /**
- * Real HTTP implementation of CustomerFilesService, calling Ops Brain's
- * Cloudflare Pages Functions API directly (functions/api/[[path]].js in
- * ColeTrickle27/holloman-ops-brain). Ops Brain's session cookie is
- * HTTP-only and origin-scoped, so this client relies on `credentials:
- * "include"` and same-site/cross-site cookie rules -- it will only work
- * once Sales Brain is served from an origin Ops Brain trusts (e.g. mounted
- * under Ops Brain itself per the long-term architecture, or added to Ops
- * Brain's CORS allowlist the way graphs.holloman-ext.com is today).
- *
- * Not wired up or exercised yet. Kept here, disconnected, as the concrete
- * target for Phase 2.
+ * Calls the protected OpsBrain API with its existing HTTP-only session cookie.
+ * Standalone SalesBrain uses the approved same-site origin sales.holloman-ext.com
+ * and an explicit API base URL; compatibility mounts use relative requests.
+ * The API validates the caller origin, session, and existing role permissions.
  */
 
 import type {

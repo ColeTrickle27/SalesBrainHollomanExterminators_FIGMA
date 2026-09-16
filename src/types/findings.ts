@@ -6,7 +6,7 @@
  *   BugMan Graph -> Inspection Markers -> Inspection Findings
  *     -> BugMan Intelligence -> Recommended Service -> Customer Report
  *
- * `InspectionMarker` mirrors `GraphAnnotation` from BugManInspects
+ * `InspectionMarker` mirrors `GraphAnnotation` from BugManGraphs
  * (lib/models/graph_annotation.dart) closely enough that a marker placed on
  * a graph can be read here without re-entering data. `MarkerCategory` and
  * `MarkerSymbol` mirror `GraphMarkerCategory` / `GraphMarkerSymbol`.
@@ -17,7 +17,7 @@
  * traces back to the marker(s) it came from via `markerIds`.
  */
 
-/** Mirrors BugManInspects' GraphMarkerCategory enum (graph_annotation.dart). */
+/** Mirrors BugManGraphs' GraphMarkerCategory enum (graph_annotation.dart). */
 export type MarkerCategory =
   | "insectFindings"
   | "structureFindings"
@@ -27,7 +27,7 @@ export type MarkerCategory =
   | "review";
 
 /**
- * Mirrors BugManInspects' GraphMarkerType enum. Kept as a plain string union
+ * Mirrors BugManGraphs' GraphMarkerType enum. Kept as a plain string union
  * (not a hardcoded finite list) because BugMan Graphs owns the canonical
  * marker catalog (lib/models/graph_marker_catalog.dart) and adds types over
  * time -- Sales Brain should treat unrecognized values as valid pass-through

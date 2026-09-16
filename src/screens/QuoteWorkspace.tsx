@@ -1,3 +1,4 @@
+import { opsBrainUrl } from "../services/opsBrain/appUrls"
 import { customerQuoteNumber } from "../features/sales/quoteNumber"
 import { CustomerReviewPresenter } from "../features/sales/components/CustomerReviewPresenter"
 import { signatureSendingBlocked } from "../features/sales/signatureEligibility"
@@ -610,7 +611,7 @@ function QuoteDeliveryPanel({
             signatureRequest.signedAgreementUrl ? (
               <div className="flex flex-wrap gap-2">
                 <a
-                  href={signatureRequest.signedAgreementUrl}
+                  href={opsBrainUrl(signatureRequest.signedAgreementUrl)}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex rounded-lg border border-surface px-3 py-2 text-xs font-bold text-brand-dark"
@@ -620,7 +621,7 @@ function QuoteDeliveryPanel({
                 </a>
                 {signatureRequest.auditTrailUrl ? (
                   <a
-                    href={signatureRequest.auditTrailUrl}
+                    href={opsBrainUrl(signatureRequest.auditTrailUrl)}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex rounded-lg border border-surface px-3 py-2 text-xs font-bold text-brand-dark"

@@ -4,7 +4,7 @@
 
 This repository is the source implementation for Holloman Exterminators' SalesBrain tool.
 
-SalesBrain is the sales workflow, inspection findings, recommendations, quoting, costing, and proposal module of Holloman Ops Brain.
+SalesBrain is an independent application for sales, leads, quotes, costing, proposals, and signatures. Existing sales inspection findings remain part of the sales workflow. OpsBrain is the operations hub, not the owner of this application's source. BugManGraphs is the separate graphing, measurements, and site-plan app; a future general inspection app will have its own unique name.
 
 The production application is mounted inside OpsBrain at:
 
@@ -111,9 +111,9 @@ Prefer adding behavior to the appropriate existing domain rather than accumulati
 
 # OpsBrain Relationship
 
-OpsBrain is the platform and integration boundary.
+holloman-mcp and approved shared APIs are the shared integration layer. OpsBrain is the operations hub. Existing OpsBrain-hosted APIs remain compatibility endpoints until a verified migration replaces each contract.
 
-OpsBrain owns or should increasingly own shared business capabilities including:
+The approved shared API layer provides business capabilities including:
 
 - authentication
 - permissions
@@ -382,7 +382,9 @@ Keep business logic separate from purely visual components where practical.
 
 ---
 
-# Mounted Application Rules
+# Temporary Mounted Application Compatibility
+
+Source and feature development remain independent in this repository. Do not import OpsBrain or BugManGraphs source or create a second implementation in another app. The current mount remains a compatibility release path until a standalone deployment has verified authentication, API access, saved estimates, graph handoff, proposals, and signatures. Do not treat a successful frontend build as proof of that migration.
 
 This repository is the source of truth for SalesBrain UI development.
 

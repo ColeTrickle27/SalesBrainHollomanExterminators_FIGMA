@@ -7,7 +7,7 @@
 import type { InspectionFinding, InspectionMarker, MarkerCategory } from "../../types/findings";
 import type { BugManGraphAnnotation } from "./types";
 
-// Mirrors GraphMarkerTypeMetadata.category in BugManInspects
+// Mirrors GraphMarkerTypeMetadata.category in BugManGraphs
 // (lib/models/graph_annotation.dart). Kept as data here so adding a new
 // marker type upstream only requires adding one line, not new logic.
 //

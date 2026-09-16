@@ -1,7 +1,7 @@
 /**
  * BugMan Graphs service boundary.
  *
- * BugMan Graphs is a Flutter web app (ColeTrickle27/BugManInspects), already
+ * BugMan Graphs is a Flutter web app (ColeTrickle27/BugManGraphs), already
  * embedded inside Ops Brain at /bugman-graphs/ and reachable standalone at
  * graphs.holloman-ext.com. Sales Brain does NOT reimplement graphing,
  * diagramming, or marker placement -- Property (workflow step 2) hosts an

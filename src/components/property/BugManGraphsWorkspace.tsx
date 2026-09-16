@@ -3,7 +3,7 @@
  * INTEGRATION BOUNDARY: BugMan Graphs (Property step)
  * ============================================================================
  * BugMan Graphs is a separate Flutter web application (ColeTrickle27/
- * BugManInspects), deployed at graphs.holloman-ext.com and opened here from
+ * BugManGraphs), deployed at graphs.holloman-ext.com and opened here from
  * the mounted Ops Brain SalesBrain application. Sales Brain does NOT
  * reimplement diagramming,
  * wall drawing, or marker placement -- this component is the ONLY place
