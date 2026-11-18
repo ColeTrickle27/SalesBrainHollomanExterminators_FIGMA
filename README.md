@@ -1,6 +1,7 @@
 # DEACTIVATED — SalesBrain
 
-**Replaced by [BugMan Quotes](https://github.com/ColeTrickle27/BugMan-Quotes).**  
+**Replaced by [BugMan Quotes](https://github.com/ColeTrickle27/BugMan-Quotes).**
+
 **Owner-confirmed status: November 18, 2026.**
 
 SalesBrain is deactivated. BugMan Quotes is the active replacement for Holloman's quoting workflow. This repository is retained as legacy source and history; it is not the current sales/quoting application or a future standalone product rollout.
