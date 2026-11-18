@@ -1,42 +1,39 @@
-# SalesBrain for Holloman Exterminators
+# DEACTIVATED — SalesBrain
 
-SalesBrain is an independent sales, leads, quotes, proposals, and signatures application. This repository owns its source and builds. OpsBrain is the operations hub.
+**Replaced by [BugMan Quotes](https://github.com/ColeTrickle27/BugMan-Quotes).**
 
-The current production delivery still uses the compatibility mount `/sales-brain/` inside OpsBrain. Keep it working until a standalone deployment and authenticated API workflow are verified. A standalone frontend build alone does not establish that readiness.
+**Owner-confirmed status: November 18, 2026.**
 
-BugManGraphs owns graphing, measurements, and site plans. Inventory owns inventory. holloman-mcp and shared APIs are the shared integration layer. Preserve existing OpsBrain API contracts and PestPac record ownership. The future inspection app will be a separate named product. Never import sibling app source or edit their compiled assets as development source.
+SalesBrain is deactivated. BugMan Quotes is the active replacement for Holloman's quoting workflow. This repository is retained as legacy source and history; it is not the current sales/quoting application or a future standalone product rollout.
 
-## Local development
+The **HubSpot leads live feed is the only remaining useful SalesBrain component identified by the owner**. It can be displayed elsewhere if needed. Keeping that feed available does not make the rest of SalesBrain active. Relocating it is separate work and has not been completed by this documentation change.
+
+## Current ownership
+
+- **Active quoting:** [ColeTrickle27/BugMan-Quotes](https://github.com/ColeTrickle27/BugMan-Quotes).
+- **Operations hub and existing shared APIs:** [Holloman Ops Brain](https://github.com/ColeTrickle27/holloman-ops-brain).
+- **Drawings and measurements:** [BugMan Graphs](https://github.com/ColeTrickle27/BugManGraphs).
+- **This repository:** Deactivated SalesBrain source, historical integration reference, and the legacy HubSpot leads feed.
+
+Existing source, saved records, API routes, mounted assets, and feed wiring are retained. This status label does not assert that every old URL has been taken offline or that the GitHub repository has been archived.
+
+## Superseded rollout plans
+
+The earlier plan to activate standalone SalesBrain at `sales.holloman-ext.com` is superseded. Old SalesBrain ownership tables, build instructions, and deployment plans describe historical work and are not an active roadmap. New quote-related development belongs in BugMan Quotes.
+
+## Legacy technical reference
+
+The retained source uses React, TypeScript, Vite, and Tailwind CSS v4. Existing OpsBrain connections and the `/sales-brain/` mount are legacy compatibility details.
+
+For explicitly scoped inspection or maintenance of retained code:
 
 ```sh
 pnpm install
 pnpm dev
+pnpm test
+pnpm run build
 ```
 
-The app uses protected OpsBrain `/api/*` routes through its configured API base URL for authentication, Customer Files, saved estimates, quote photos, the Sales Brain Pricebook, and BugMan Graphs. Development mode can display local fallback findings, but production does not fabricate customers, quotes, pricing, or operational status.
+The historical `build:mounted` and `build:standalone` scripts remain in source for reproducibility. Their presence is not authorization or a requirement to publish or reactivate SalesBrain. The previous documentation remains available in Git history.
 
-## Mounted production build
-
-```sh
-pnpm run build:mounted
-```
-
-This produces `dist/` with a `/sales-brain/` base path. Replace the contents of Ops Brain's `public/sales-brain/` directory with that output, then run the Ops Brain build and route checks.
-
-## Runtime boundaries
-
-- Ops Brain owns authentication and persistent operating data.
-- Customer-facing presentation and proposal views exclude product cost estimates and internal notes.
-- Product usage is an estimate only; SalesBrain does not track inventory or implement approval gates.
-- PestPac is not connected to this application. Scheduling, billing, service history, and other PestPac-owned workflows remain outside SalesBrain.
-- HubSpot, Gmail, DocuSign, Product Catalog, Pricing Rules, and Proposal Templates are future integration domains unless a screen explicitly identifies a live service.
-
-## Standalone delivery (prepared, production cutover pending)
-
-Run `pnpm run build:standalone` to produce a root-hosted `dist/` for `sales.holloman-ext.com`. It sets real HTTP adapters, the API origin `https://ops.holloman-ext.com`, and the graph origin `https://graphs.holloman-ext.com`. These public URLs are not credentials. Provider secrets and all storage bindings stay on the API host.
-
-Deploy the matching OpsBrain origin-policy change before activating this frontend. Employees sign in through the existing Holloman sign-in in a separate tab, keep their draft open, then select **Check sign-in**. Requests include the existing host-scoped session cookie; no browser token or new identity system is introduced. The new origin must be same-site HTTPS in production.
-
-For isolated preview testing, set `VITE_OPS_BRAIN_BASE_URL` and `VITE_BUGMAN_GRAPHS_URL` at build time and match `SALES_BRAIN_APP_ORIGIN` on the isolated OpsBrain API. The checked-in Pages CSP permits the production API/graph hosts; an alternate hosted preview must explicitly configure its matching CSP. Never point a write test at production data.
-
-The Cloudflare Pages project/custom domain is pending a coordinated production release. Publish `dist/`, preserve the SPA redirects and security headers, and verify sign-in, customer lookup, save/reopen, graph handoff, protected photos/documents, and provider status before switching the OpsBrain hub build. The older mounted build remains a rollback path until that verification passes.
+See [AGENTS.md](AGENTS.md) for the same deactivation status and retained maintenance safeguards.

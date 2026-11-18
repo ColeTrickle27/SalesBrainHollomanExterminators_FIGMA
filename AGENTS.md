@@ -1,16 +1,18 @@
-# BugMan Sales Brain
+# DEACTIVATED — SalesBrain repository guidance
 
-## Purpose
+## Current status — owner decision, November 18, 2026
 
-This repository is the source implementation for Holloman Exterminators' SalesBrain tool.
+**SalesBrain has been replaced by [BugMan Quotes](https://github.com/ColeTrickle27/BugMan-Quotes). SalesBrain is deactivated.**
 
-SalesBrain is an independent application for sales, leads, quotes, costing, proposals, and signatures. Existing sales inspection findings remain part of the sales workflow. OpsBrain is the operations hub, not the owner of this application's source. BugManGraphs is the separate graphing, measurements, and site-plan app; a future general inspection app will have its own unique name.
+BugMan Quotes is the active quoting application. This repository is retained for historical source, existing integration references, and the **HubSpot leads live feed**, which the owner identified as its only remaining useful component. That feed can be shown elsewhere; its presence does not make SalesBrain an active sales platform.
 
-The production application is mounted inside OpsBrain at:
+There is no active SalesBrain feature roadmap or standalone rollout. Earlier instructions to launch SalesBrain at `sales.holloman-ext.com` are superseded by this owner decision. Route quote-related implementation to the BugMan Quotes repository.
 
-`/sales-brain/`
+Preserve retained source, history, records, existing API/mount compatibility, and the HubSpot feed. Deactivation labeling is not a request to delete data, disable the feed, alter authentication, remove runtime assets, or reactivate the old application.
 
-Treat this repository as a production business application. Preserve working behavior, OpsBrain integration, employee usability, customer data, and the mounted build process.
+## Retained maintenance guidance
+
+The safeguards below apply to explicitly scoped documentation, preservation, recovery, or maintenance of legacy code and the remaining feed. References to SalesBrain workflows describe that retained implementation, not current product ownership. Current user instructions take precedence.
 
 ---
 
@@ -256,7 +258,7 @@ If a formal architecture/design document is later restored to the repository, fo
 
 # Employee Workflow
 
-SalesBrain is used during real inspection and sales workflows.
+SalesBrain previously supported inspection and sales workflows. BugMan Quotes is now the active replacement; only the legacy HubSpot leads live feed remains useful per the owner.
 
 Prioritize:
 
@@ -382,11 +384,11 @@ Keep business logic separate from purely visual components where practical.
 
 ---
 
-# Temporary Mounted Application Compatibility
+# Legacy Mounted Application Compatibility
 
-Source and feature development remain independent in this repository. Do not import OpsBrain or BugManGraphs source or create a second implementation in another app. The current mount remains a compatibility release path until a standalone deployment has verified authentication, API access, saved estimates, graph handoff, proposals, and signatures. Do not treat a successful frontend build as proof of that migration.
+This repository retains deactivated SalesBrain source. Do not import OpsBrain or BugManGraphs source or create a second implementation in another app. Existing mounts and API wiring are legacy compatibility dependencies; the former standalone SalesBrain rollout is superseded. Preserve the HubSpot leads live feed until separately scoped relocation or retirement.
 
-This repository is the source of truth for SalesBrain UI development.
+This repository is the historical SalesBrain source. Active quote-related development belongs in [BugMan Quotes](https://github.com/ColeTrickle27/BugMan-Quotes).
 
 Production mounted output is generated with:
 
@@ -402,7 +404,7 @@ Do not make normal SalesBrain feature changes by hand-editing the compiled files
 
 `public/sales-brain/`
 
-Correct workflow:
+Historical mounted-build reference for explicitly scoped legacy maintenance:
 
 1. Modify SalesBrain source in this repository.
 2. Test it here.
@@ -497,9 +499,9 @@ If a check is skipped, explain why.
 
 ---
 
-# OpsBrain Handoff
+# Legacy OpsBrain Handoff
 
-Before declaring a SalesBrain change production-ready:
+For an explicitly scoped legacy maintenance release, the retained handoff checks are:
 
 1. Confirm SalesBrain tests pass.
 2. Confirm the normal build passes.
